@@ -78,9 +78,50 @@ async function generateMarkmap(markdownContent, outputFilename) {
   fs.writeFileSync(mdFilePath, markdownContent);
   
   try {
-    // 使用 markmap-cli 生成 HTML
-    const command = `npx markmap-cli ${mdFilePath} -o ${htmlOutputPath}`;
-    await execPromise(command);
+    // 确保生成输出目录存在
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+    
+    // 使用 markmap-cli 最新版本0.18.11生成HTML
+    // 添加参数 --offline 以便在Vercel环境中能离线使用
+    const command = `npx markmap-cli ${mdFilePath} -o ${htmlOutputPath} --offline --no-open`;
+    
+    try {
+      await execPromise(command);
+    } catch (cmdError) {
+      console.error('Markmap命令执行错误:', cmdError);
+      
+      // 如果命令失败，尝试使用备选方案：生成一个最小的html文件
+      const minimalHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markmap</title>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.18.11"></script>
+  <style>
+    html, body, svg { height: 100%; width: 100%; margin: 0; padding: 0; }
+  </style>
+</head>
+<body>
+  <svg id="mindmap"></svg>
+  <script>
+    const markdown = ${JSON.stringify(markdownContent)};
+    window.markmap.autoLoader.renderString(markdown, document.getElementById('mindmap'));
+  </script>
+</body>
+</html>`;
+      
+      fs.writeFileSync(htmlOutputPath, minimalHtml);
+      console.log('使用备选方案生成HTML');
+    }
+    
+    // 检查文件是否成功生成
+    if (!fs.existsSync(htmlOutputPath)) {
+      throw new Error('未能创建HTML文件');
+    }
     
     return htmlOutputPath;
   } catch (error) {
@@ -347,7 +388,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// 启动服务器
-app.listen(PORT, () => {
-  console.log(`服务已启动在 http://localhost:${PORT}`);
-}); 
+// 启动服务器（仅在直接运行时，非 Vercel 环境）
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_VERSION) {
+  app.listen(PORT, () => {
+    console.log(`服务已启动在 http://localhost:${PORT}`);
+  });
+}
+
+// 导出应用供 Vercel 使用
+module.exports = app; 
