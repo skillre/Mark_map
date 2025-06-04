@@ -341,13 +341,17 @@ setInterval(cleanupTempFiles, 60 * 60 * 1000);
 app.get('/api/image/:filename', async (req, res) => {
   try {
     console.log(`图片API被调用: ${req.params.filename}`);
-    const filename = req.params.filename.replace(/\.png$/, '');
+    // 移除所有可能的文件扩展名（.png, .svg等）
+    const filename = req.params.filename.replace(/\.(png|svg)$/, '');
+    console.log(`处理后的文件名: ${filename}`);
+    
     // 添加安全检查，防止路径遍历攻击
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       return res.status(400).json({ error: '无效的文件名' });
     }
     
     const htmlPath = path.join(outputDir, `${filename}.html`);
+    console.log(`查找HTML文件: ${htmlPath}`);
     
     // 检查HTML文件是否存在
     if (!fs.existsSync(htmlPath)) {
@@ -370,14 +374,14 @@ app.get('/api/image/:filename', async (req, res) => {
     // 尝试使用已生成的SVG文件
     const svgPath = path.join(outputDir, `${filename}.svg`);
     if (fs.existsSync(svgPath)) {
-      console.log('返回已生成的SVG文件');
+      console.log(`返回已生成的SVG文件: ${svgPath}`);
       return res.type('image/svg+xml').sendFile(svgPath);
     }
 
     // 没有SVG文件，使用占位图
     const placeholderSvgPath = path.join(__dirname, '../public/placeholder.svg');
     if (fs.existsSync(placeholderSvgPath)) {
-      console.log('使用SVG占位图');
+      console.log(`使用SVG占位图: ${placeholderSvgPath}`);
       return res.type('image/svg+xml').sendFile(placeholderSvgPath);
     }
     

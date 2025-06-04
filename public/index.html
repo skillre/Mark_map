@@ -274,7 +274,7 @@
           <i>🌐</i> 查看HTML思维导图
         </a>
         <a href="#" class="result-link" id="image-link" target="_blank">
-          <i>🖼️</i> 查看PNG图片
+          <i>🖼️</i> 查看SVG图片
         </a>
         <a href="#" class="result-link" id="mindmap-link" target="_blank">
           <i>📊</i> 下载思维导图文件
@@ -313,7 +313,7 @@
 ### 查看结果
 ## 支持的功能
 ### HTML思维导图
-### PNG图片导出
+### SVG图片导出
 ### 思维导图文件导出
 ## 标题层级
 ### 一级标题
@@ -434,15 +434,19 @@
             event.preventDefault(); // 阻止默认行为
             
             try {
+              console.log('正在请求图片：', this.href);
               const response = await fetch(this.href);
               const contentType = response.headers.get('content-type');
+              console.log('响应内容类型：', contentType);
               
               if (contentType && contentType.includes('application/json')) {
                 // 这是一个JSON响应，可能是错误或重定向
                 const data = await response.json();
+                console.log('收到JSON响应：', data);
                 
                 if (data.redirect) {
                   // 有重定向信息，跳转到HTML版本
+                  console.log('重定向到：', data.redirect);
                   window.open(data.redirect, '_blank');
                   
                   if (data.message) {
@@ -467,18 +471,23 @@
                   }
                 } else if (data.error) {
                   // 显示错误信息
+                  console.error('图片错误：', data.error);
                   showError(data.error + (data.details ? ': ' + data.details : ''));
                 }
               } else if (contentType && contentType.includes('image/svg+xml')) {
-                // 是SVG图片，在新窗口打开并添加提示
+                // 是SVG图片，在新窗口打开
+                console.log('显示SVG图片');
                 window.open(this.href, '_blank');
-                showError('思维导图图片不可用 - 请使用HTML版本查看');
               } else if (contentType && contentType.includes('image/')) {
                 // 是正常图片数据，直接打开
+                console.log('显示图片');
                 window.open(this.href, '_blank');
               } else {
                 // 未知响应类型
+                console.error('未知响应类型：', contentType);
                 showError('无法获取图片，请使用HTML版本查看思维导图');
+                // 自动打开HTML版本
+                window.open(htmlLink.href, '_blank');
               }
             } catch (error) {
               console.error('获取图片时出错:', error);
