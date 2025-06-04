@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown思维导图生成器</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f8f9fa;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #2c3e50;
+    }
+    
+    .tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      border: none;
+      background: none;
+      font-size: 16px;
+      font-weight: 500;
+      color: #666;
+      transition: all 0.3s;
+    }
+    
+    .tab.active {
+      color: #3498db;
+      border-bottom: 2px solid #3498db;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    
+    textarea {
+      width: 100%;
+      height: 300px;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      resize: vertical;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    
+    .file-input {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      border: 1px dashed #ddd;
+      border-radius: 4px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .file-input:hover {
+      border-color: #3498db;
+      background-color: #f0f8ff;
+    }
+    
+    .btn {
+      display: inline-block;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 500;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .btn:hover {
+      background-color: #2980b9;
+    }
+    
+    .result {
+      margin-top: 30px;
+      display: none;
+    }
+    
+    .result h2 {
+      margin-bottom: 20px;
+      color: #2c3e50;
+    }
+    
+    .result-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    
+    .result-link {
+      display: flex;
+      align-items: center;
+      padding: 10px 15px;
+      background-color: #f1f1f1;
+      border-radius: 4px;
+      text-decoration: none;
+      color: #333;
+      transition: all 0.3s;
+    }
+    
+    .result-link:hover {
+      background-color: #e0e0e0;
+    }
+    
+    .result-link i {
+      margin-right: 8px;
+    }
+    
+    .preview {
+      margin-top: 20px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .preview iframe {
+      width: 100%;
+      height: 500px;
+      border: none;
+    }
+    
+    .loading {
+      display: none;
+      text-align: center;
+      margin: 20px 0;
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top-color: #3498db;
+      animation: spin 1s ease-in-out infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .error {
+      color: #e74c3c;
+      padding: 10px;
+      background-color: #fadbd8;
+      border-radius: 4px;
+      margin-top: 20px;
+      display: none;
+    }
+    
+    .example-btn {
+      margin-top: 10px;
+      background-color: transparent;
+      color: #3498db;
+      border: 1px solid #3498db;
+      padding: 8px 16px;
+      font-size: 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .example-btn:hover {
+      background-color: #f0f8ff;
+    }
+    
+    @media (max-width: 768px) {
+      .container {
+        padding: 15px;
+      }
+      
+      .result-links {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Markdown思维导图生成器</h1>
+    
+    <div class="tabs">
+      <button class="tab active" data-tab="text">文本输入</button>
+      <button class="tab" data-tab="file">文件上传</button>
+    </div>
+    
+    <div id="text-tab" class="tab-content active">
+      <div class="form-group">
+        <label for="markdown-text">输入Markdown文本：</label>
+        <textarea id="markdown-text" placeholder="# 一级标题&#10;## 二级标题&#10;### 三级标题"></textarea>
+        <button class="example-btn" id="load-example">加载示例</button>
+      </div>
+      <button class="btn" id="generate-btn">生成思维导图</button>
+    </div>
+    
+    <div id="file-tab" class="tab-content">
+      <div class="form-group">
+        <label for="markdown-file">上传Markdown文件：</label>
+        <input type="file" id="markdown-file" accept=".md,.markdown,.txt" class="file-input">
+      </div>
+      <button class="btn" id="upload-btn">上传并生成</button>
+    </div>
+    
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>正在生成思维导图，请稍候...</p>
+    </div>
+    
+    <div class="error" id="error-message"></div>
+    
+    <div class="result" id="result">
+      <h2>生成结果</h2>
+      <div class="result-links">
+        <a href="#" class="result-link" id="html-link" target="_blank">
+          <i>🌐</i> 查看HTML思维导图
+        </a>
+        <a href="#" class="result-link" id="image-link" target="_blank">
+          <i>🖼️</i> 查看PNG图片
+        </a>
+        <a href="#" class="result-link" id="mindmap-link" target="_blank">
+          <i>📊</i> 下载思维导图文件
+        </a>
+      </div>
+      
+      <div class="preview">
+        <iframe id="preview-frame" title="思维导图预览"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // 标签切换
+      const tabs = document.querySelectorAll('.tab');
+      const tabContents = document.querySelectorAll('.tab-content');
+      
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const tabId = tab.getAttribute('data-tab');
+          
+          tabs.forEach(t => t.classList.remove('active'));
+          tabContents.forEach(tc => tc.classList.remove('active'));
+          
+          tab.classList.add('active');
+          document.getElementById(`${tabId}-tab`).classList.add('active');
+        });
+      });
+      
+      // 加载示例
+      const exampleMarkdown = `# Markdown思维导图示例
+## 使用方法
+### 编写Markdown
+### 点击生成按钮
+### 查看结果
+## 支持的功能
+### HTML思维导图
+### PNG图片导出
+### 思维导图文件导出
+## 标题层级
+### 一级标题
+#### 二级标题
+##### 三级标题
+###### 四级标题
+## 注意事项
+### 只有标题会被解析为节点
+### 正文内容不会显示在思维导图中`;
+      
+      document.getElementById('load-example').addEventListener('click', () => {
+        document.getElementById('markdown-text').value = exampleMarkdown;
+      });
+      
+      // 文本生成
+      document.getElementById('generate-btn').addEventListener('click', async () => {
+        const markdown = document.getElementById('markdown-text').value.trim();
+        
+        if (!markdown) {
+          showError('请输入Markdown文本');
+          return;
+        }
+        
+        showLoading();
+        hideError();
+        
+        try {
+          const response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ markdown })
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || '生成失败');
+          }
+          
+          const result = await response.json();
+          showResult(result);
+        } catch (error) {
+          showError(error.message);
+        } finally {
+          hideLoading();
+        }
+      });
+      
+      // 文件上传
+      document.getElementById('upload-btn').addEventListener('click', async () => {
+        const fileInput = document.getElementById('markdown-file');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+          showError('请选择文件');
+          return;
+        }
+        
+        showLoading();
+        hideError();
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+          const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || '上传失败');
+          }
+          
+          const result = await response.json();
+          showResult(result);
+        } catch (error) {
+          showError(error.message);
+        } finally {
+          hideLoading();
+        }
+      });
+      
+      function showResult(result) {
+        const resultElement = document.getElementById('result');
+        const htmlLink = document.getElementById('html-link');
+        const imageLink = document.getElementById('image-link');
+        const mindmapLink = document.getElementById('mindmap-link');
+        const previewFrame = document.getElementById('preview-frame');
+        
+        htmlLink.href = result.html;
+        imageLink.href = result.image;
+        mindmapLink.href = result.mindmap;
+        previewFrame.src = result.html;
+        
+        resultElement.style.display = 'block';
+      }
+      
+      function showLoading() {
+        document.querySelector('.loading').style.display = 'block';
+      }
+      
+      function hideLoading() {
+        document.querySelector('.loading').style.display = 'none';
+      }
+      
+      function showError(message) {
+        const errorElement = document.getElementById('error-message');
+        errorElement.textContent = message;
+        errorElement.style.display = 'block';
+      }
+      
+      function hideError() {
+        document.getElementById('error-message').style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html> 
