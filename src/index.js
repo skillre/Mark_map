@@ -20,13 +20,23 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 在Vercel环境中使用/tmp目录
+const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION;
+const baseDir = isVercel ? '/tmp' : path.join(__dirname, '..');
+const uploadDir = path.join(baseDir, 'uploads');
+const outputDir = path.join(baseDir, 'output');
+
+// 确保目录存在
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+if (!fs.existsSync(outputDir)) {
+  fs.mkdirSync(outputDir, { recursive: true });
+}
+
 // 配置存储
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
@@ -41,13 +51,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
-app.use('/output', express.static(path.join(__dirname, '../output')));
-
-// 确保目录存在
-const outputDir = path.join(__dirname, '../output');
-if (!fs.existsSync(outputDir)) {
-  fs.mkdirSync(outputDir, { recursive: true });
-}
+app.use('/output', express.static(outputDir));
 
 /**
  * 从 Markdown 生成思维导图 HTML
@@ -56,8 +60,8 @@ if (!fs.existsSync(outputDir)) {
  * @returns {Promise<string>} HTML 文件路径
  */
 async function generateMarkmap(markdownContent, outputFilename) {
-  const mdFilePath = path.join(__dirname, '../uploads', `${outputFilename}.md`);
-  const htmlOutputPath = path.join(__dirname, '../output', `${outputFilename}.html`);
+  const mdFilePath = path.join(uploadDir, `${outputFilename}.md`);
+  const htmlOutputPath = path.join(outputDir, `${outputFilename}.html`);
   
   // 写入 markdown 文件
   fs.writeFileSync(mdFilePath, markdownContent);
@@ -76,21 +80,26 @@ async function generateMarkmap(markdownContent, outputFilename) {
  * @returns {Promise<string>} 图片文件路径
  */
 async function generateImage(htmlPath, outputFilename) {
-  const imageOutputPath = path.join(__dirname, '../output', `${outputFilename}.png`);
+  const imageOutputPath = path.join(outputDir, `${outputFilename}.png`);
   
-  // 获取 Chrome 可执行文件路径
-  let executablePath;
+  // 获取 Chrome 可执行文件路径和浏览器选项
+  let options = {
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    headless: true, // 使用旧的headless模式，而不是"new"
+  };
+  
   if (process.env.AWS_LAMBDA_FUNCTION_VERSION) {
-    // Vercel 环境
-    executablePath = await require('chrome-aws-lambda').executablePath;
+    // Vercel环境
+    const chromium = require('chrome-aws-lambda');
+    options = {
+      ...options,
+      executablePath: await chromium.executablePath,
+      args: [...chromium.args, ...options.args],
+    };
   }
 
   // 启动浏览器
-  const browser = await puppeteer.launch({
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    executablePath: executablePath,
-    headless: "new",
-  });
+  const browser = await puppeteer.launch(options);
 
   try {
     const page = await browser.newPage();
@@ -134,7 +143,7 @@ async function generateImage(htmlPath, outputFilename) {
  * @returns {Promise<string>} XMind 文件路径
  */
 async function generateXMindFile(markdownContent, outputFilename) {
-  const xmindOutputPath = path.join(__dirname, '../output', `${outputFilename}.json`);
+  const xmindOutputPath = path.join(outputDir, `${outputFilename}.json`);
   
   // 使用简单的解析将 Markdown 转换为树形结构
   const lines = markdownContent.split('\n').filter(line => line.trim().startsWith('#'));
@@ -174,7 +183,42 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// API 路由 - 从文本生成思维导图
+// 新增API端点 - 从HTML生成图片
+app.get('/api/image/:filename', async (req, res) => {
+  try {
+    const filename = req.params.filename.replace(/\.png$/, '');
+    const htmlPath = path.join(outputDir, `${filename}.html`);
+    
+    // 检查HTML文件是否存在
+    if (!fs.existsSync(htmlPath)) {
+      return res.status(404).json({ error: '找不到HTML文件' });
+    }
+    
+    // 生成图片
+    const imageOutputPath = path.join(outputDir, `${filename}.png`);
+    
+    // 检查图片是否已经存在
+    if (fs.existsSync(imageOutputPath)) {
+      // 图片已存在，直接发送
+      return res.type('image/png').sendFile(imageOutputPath);
+    }
+    
+    // 生成图片
+    await generateImage(htmlPath, filename);
+    
+    // 发送图片
+    if (fs.existsSync(imageOutputPath)) {
+      return res.type('image/png').sendFile(imageOutputPath);
+    } else {
+      throw new Error('生成图片失败');
+    }
+  } catch (error) {
+    console.error('图片生成失败:', error);
+    res.status(500).json({ error: '生成图片失败', details: error.message });
+  }
+});
+
+// 修改文本生成API，不再同步生成图片
 app.post('/api/generate', async (req, res) => {
   try {
     const { markdown } = req.body;
@@ -189,16 +233,13 @@ app.post('/api/generate', async (req, res) => {
     // 生成思维导图 HTML
     const htmlPath = await generateMarkmap(markdown, outputFilename);
     
-    // 生成图片
-    const imagePath = await generateImage(htmlPath, outputFilename);
-    
     // 生成思维导图文件 (XMind 格式)
     const xmindPath = await generateXMindFile(markdown, outputFilename);
     
     // 返回文件路径
     res.json({
       html: `/output/${outputFilename}.html`,
-      image: `/output/${outputFilename}.png`,
+      image: `/api/image/${outputFilename}.png`,
       mindmap: `/output/${outputFilename}.json`
     });
   } catch (error) {
@@ -207,7 +248,7 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
-// API 路由 - 从文件生成思维导图
+// 修改文件上传API，不再同步生成图片
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -223,16 +264,13 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     // 生成思维导图 HTML
     const htmlPath = await generateMarkmap(markdown, outputFilename);
     
-    // 生成图片
-    const imagePath = await generateImage(htmlPath, outputFilename);
-    
     // 生成思维导图文件 (XMind 格式)
     const xmindPath = await generateXMindFile(markdown, outputFilename);
     
     // 返回文件路径
     res.json({
       html: `/output/${outputFilename}.html`,
-      image: `/output/${outputFilename}.png`,
+      image: `/api/image/${outputFilename}.png`,
       mindmap: `/output/${outputFilename}.json`
     });
   } catch (error) {
