@@ -195,6 +195,16 @@
       display: none;
     }
     
+    .info {
+      color: #3498db;
+      padding: 10px;
+      background-color: #eaf2f8;
+      border-radius: 4px;
+      margin-top: 10px;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
     .example-btn {
       margin-top: 10px;
       background-color: transparent;
@@ -236,6 +246,7 @@
         <label for="markdown-text">输入Markdown文本：</label>
         <textarea id="markdown-text" placeholder="# 一级标题&#10;## 二级标题&#10;### 三级标题"></textarea>
         <button class="example-btn" id="load-example">加载示例</button>
+        <div class="info">注意：由于服务器资源限制，Markdown文本大小不超过500KB，节点数量限制在500个以内</div>
       </div>
       <button class="btn" id="generate-btn">生成思维导图</button>
     </div>
@@ -244,6 +255,7 @@
       <div class="form-group">
         <label for="markdown-file">上传Markdown文件：</label>
         <input type="file" id="markdown-file" accept=".md,.markdown,.txt" class="file-input">
+        <div class="info">注意：由于服务器资源限制，文件大小不超过500KB</div>
       </div>
       <button class="btn" id="upload-btn">上传并生成</button>
     </div>
@@ -325,6 +337,12 @@
           return;
         }
         
+        // 检查文件大小
+        if (markdown.length > 500000) {
+          showError('文件过大，请减小内容（不超过500KB）');
+          return;
+        }
+        
         showLoading();
         hideError();
         
@@ -334,18 +352,19 @@
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ markdown })
+            body: JSON.stringify({ markdown }),
+            timeout: 25000 // 25秒超时
           });
           
           if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || '生成失败');
+            throw new Error(error.error || error.details || '生成失败');
           }
           
           const result = await response.json();
           showResult(result);
         } catch (error) {
-          showError(error.message);
+          showError('生成思维导图失败: ' + error.message);
         } finally {
           hideLoading();
         }
@@ -361,6 +380,12 @@
           return;
         }
         
+        // 检查文件大小
+        if (file.size > 500000) {
+          showError('文件过大，请选择小于500KB的文件');
+          return;
+        }
+        
         showLoading();
         hideError();
         
@@ -370,18 +395,19 @@
         try {
           const response = await fetch('/api/upload', {
             method: 'POST',
-            body: formData
+            body: formData,
+            timeout: 25000 // 25秒超时
           });
           
           if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || '上传失败');
+            throw new Error(error.error || error.details || '上传失败');
           }
           
           const result = await response.json();
           showResult(result);
         } catch (error) {
-          showError(error.message);
+          showError('上传或生成失败: ' + error.message);
         } finally {
           hideLoading();
         }
