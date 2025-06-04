@@ -78,6 +78,7 @@ app.use((err, req, res, next) => {
  * @returns {Promise<string>} HTML 文件路径
  */
 async function generateMarkmap(markdownContent, outputFilename) {
+  console.log('generateMarkmap: 开始生成思维导图HTML');
   const htmlOutputPath = path.join(outputDir, `${outputFilename}.html`);
   
   // 限制过大的文件，防止内存溢出
@@ -88,20 +89,48 @@ async function generateMarkmap(markdownContent, outputFilename) {
   try {
     // 确保生成输出目录存在
     if (!fs.existsSync(outputDir)) {
+      console.log(`创建输出目录: ${outputDir}`);
       fs.mkdirSync(outputDir, { recursive: true });
     }
     
     // 直接使用markmap库生成HTML，不再使用CLI命令
-    let transformer;
     let markmapHtml;
 
+    // 检查Transformer是否可用
+    if (!Transformer) {
+      console.log('markmap-lib的Transformer不可用，尝试重新导入');
+      try {
+        const markmapLib = require('markmap-lib');
+        if (markmapLib && markmapLib.Transformer) {
+          console.log('重新导入markmap-lib成功');
+          Transformer = markmapLib.Transformer;
+        } else {
+          console.error('markmap-lib导入成功，但Transformer未定义');
+        }
+      } catch (importError) {
+        console.error('重新导入markmap-lib失败:', importError);
+      }
+    }
+
     if (Transformer) {
-      // 使用markmap-lib生成思维导图数据
-      transformer = new Transformer();
-      const { root, features } = transformer.transform(markdownContent);
-      
-      // 生成HTML
-      markmapHtml = `
+      console.log('使用markmap-lib的Transformer生成思维导图');
+      try {
+        // 使用markmap-lib生成思维导图数据
+        const transformer = new Transformer();
+        console.log('Transformer实例创建成功');
+        
+        const transformResult = transformer.transform(markdownContent);
+        console.log('Markdown转换成功');
+        
+        if (!transformResult || !transformResult.root) {
+          throw new Error('转换结果无效，缺少root属性');
+        }
+        
+        const { root, features } = transformResult;
+        
+        // 生成HTML
+        console.log('开始生成HTML');
+        markmapHtml = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -123,17 +152,33 @@ async function generateMarkmap(markdownContent, outputFilename) {
     
     // 在页面加载完成后渲染
     document.addEventListener('DOMContentLoaded', function() {
-      const { Markmap } = window.markmap;
-      const svg = document.getElementById('mindmap');
-      const mm = Markmap.create(svg, {
-        autoFit: true,
-        zoom: true
-      }, markmapData);
+      try {
+        if (!window.markmap) {
+          console.error('markmap库未加载成功');
+          document.body.innerHTML = '<div style="color:red;padding:20px;">加载思维导图库失败，请刷新页面重试</div>';
+          return;
+        }
+        
+        const { Markmap } = window.markmap;
+        const svg = document.getElementById('mindmap');
+        const mm = Markmap.create(svg, {
+          autoFit: true,
+          zoom: true
+        }, markmapData);
+      } catch(err) {
+        console.error('渲染思维导图失败:', err);
+        document.body.innerHTML = '<div style="color:red;padding:20px;">渲染思维导图失败: ' + err.message + '</div>';
+      }
     });
   </script>
 </body>
 </html>`;
+      } catch (transformError) {
+        console.error('使用Transformer生成过程中出错:', transformError);
+        throw transformError;
+      }
     } else {
+      console.log('使用备用方案生成思维导图HTML');
       // 如果markmap-lib导入失败，使用备用方案
       markmapHtml = `
 <!DOCTYPE html>
@@ -142,28 +187,57 @@ async function generateMarkmap(markdownContent, outputFilename) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Markmap</title>
-  <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.14.4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader"></script>
   <style>
     html, body, svg { height: 100%; width: 100%; margin: 0; padding: 0; }
+    .error { color: red; padding: 20px; }
   </style>
 </head>
 <body>
   <svg id="mindmap"></svg>
+  <div id="error" class="error" style="display:none;"></div>
   <script>
     // 在页面加载完成后执行
     document.addEventListener('DOMContentLoaded', () => {
-      const markdown = ${JSON.stringify(markdownContent)};
-      
-      // 使用markmap-autoloader的API
-      window.markmap.autoLoader.load().then(() => {
-        // 创建Markmap实例
-        const { Markmap } = window.markmap;
-        const transformer = new window.markmap.Transformer();
-        const { root } = transformer.transform(markdown);
+      try {
+        const markdown = ${JSON.stringify(markdownContent)};
+        const errorEl = document.getElementById('error');
         
-        // 初始化mindmap
-        const mm = Markmap.create('#mindmap', { autoFit: true }, root);
-      });
+        // 使用markmap-autoloader的API
+        if (!window.markmap || !window.markmap.autoLoader) {
+          errorEl.textContent = 'markmap库加载失败，请检查网络连接';
+          errorEl.style.display = 'block';
+          return;
+        }
+        
+        window.markmap.autoLoader.load()
+          .then(() => {
+            try {
+              // 创建Markmap实例
+              const { Markmap } = window.markmap;
+              if (!window.markmap.Transformer) {
+                throw new Error('Transformer未加载');
+              }
+              const transformer = new window.markmap.Transformer();
+              const { root } = transformer.transform(markdown);
+              
+              // 初始化mindmap
+              const mm = Markmap.create('#mindmap', { autoFit: true }, root);
+            } catch (renderError) {
+              errorEl.textContent = '渲染思维导图失败: ' + renderError.message;
+              errorEl.style.display = 'block';
+              console.error('渲染错误:', renderError);
+            }
+          })
+          .catch(loadError => {
+            errorEl.textContent = '加载思维导图库失败: ' + loadError.message;
+            errorEl.style.display = 'block';
+            console.error('加载错误:', loadError);
+          });
+      } catch (globalError) {
+        document.body.innerHTML = '<div class="error">页面初始化错误: ' + globalError.message + '</div>';
+        console.error('全局错误:', globalError);
+      }
     });
   </script>
 </body>
@@ -171,6 +245,7 @@ async function generateMarkmap(markdownContent, outputFilename) {
     }
     
     // 写入HTML文件
+    console.log(`写入HTML文件: ${htmlOutputPath}`);
     fs.writeFileSync(htmlOutputPath, markmapHtml);
     
     // 检查文件是否成功生成
@@ -178,10 +253,11 @@ async function generateMarkmap(markdownContent, outputFilename) {
       throw new Error('未能创建HTML文件');
     }
     
+    console.log('generateMarkmap: HTML生成完成');
     return htmlOutputPath;
   } catch (error) {
-    console.error('生成HTML失败:', error);
-    throw new Error('生成思维导图HTML失败: ' + error.message);
+    console.error('生成HTML失败详细日志:', error);
+    throw new Error(`生成思维导图HTML失败: ${error.message}`);
   }
 }
 
@@ -192,6 +268,7 @@ async function generateMarkmap(markdownContent, outputFilename) {
  * @returns {Promise<string>} 图片文件路径
  */
 async function generateImage(htmlPath, outputFilename) {
+  console.log(`generateImage: 开始从HTML生成图片: ${htmlPath}`);
   const imageOutputPath = path.join(outputDir, `${outputFilename}.png`);
   
   // 获取 Chrome 可执行文件路径和浏览器选项
@@ -201,34 +278,75 @@ async function generateImage(htmlPath, outputFilename) {
     defaultViewport: { width: 1200, height: 800 }
   };
   
-  if (process.env.AWS_LAMBDA_FUNCTION_VERSION) {
-    // Vercel环境
-    const chromium = require('chrome-aws-lambda');
-    options = {
-      ...options,
-      executablePath: await chromium.executablePath,
-      args: [...chromium.args, ...options.args],
-    };
-  }
-
-  // 启动浏览器，设置较小的上下文
-  const browser = await puppeteer.launch(options);
-
   try {
-    // 简化页面操作，减少内存使用
-    const page = await browser.newPage();
-    await page.goto(`file://${htmlPath}`, { waitUntil: 'domcontentloaded' });
-    
-    // 使用固定尺寸，避免复杂计算
-    await page.screenshot({ 
-      path: imageOutputPath,
-      fullPage: true,
-      omitBackground: true
-    });
-    
-    return imageOutputPath;
-  } finally {
-    await browser.close();
+    console.log('配置浏览器环境');
+    if (process.env.AWS_LAMBDA_FUNCTION_VERSION) {
+      // Vercel环境
+      console.log('检测到Vercel/AWS Lambda环境');
+      try {
+        const chromium = require('chrome-aws-lambda');
+        options = {
+          ...options,
+          executablePath: await chromium.executablePath,
+          args: [...chromium.args, ...options.args],
+        };
+        console.log('已加载chrome-aws-lambda');
+      } catch (chromiumError) {
+        console.error('加载chrome-aws-lambda失败:', chromiumError);
+        throw new Error(`无法加载chrome-aws-lambda: ${chromiumError.message}`);
+      }
+    }
+
+    // 启动浏览器，设置较小的上下文
+    console.log('启动浏览器');
+    const browser = await puppeteer.launch(options)
+      .catch(launchError => {
+        console.error('启动浏览器失败:', launchError);
+        throw new Error(`启动浏览器失败: ${launchError.message}`);
+      });
+
+    try {
+      console.log('创建新页面');
+      // 简化页面操作，减少内存使用
+      const page = await browser.newPage()
+        .catch(pageError => {
+          console.error('创建页面失败:', pageError);
+          throw new Error(`创建页面失败: ${pageError.message}`);
+        });
+      
+      console.log(`导航至HTML页面: ${htmlPath}`);
+      await page.goto(`file://${htmlPath}`, { waitUntil: 'domcontentloaded' })
+        .catch(gotoError => {
+          console.error('导航到HTML失败:', gotoError);
+          throw new Error(`导航到HTML失败: ${gotoError.message}`);
+        });
+      
+      console.log('等待页面加载完成');
+      // 给页面一些时间来渲染
+      await page.waitForTimeout(1000);
+      
+      console.log('开始截图');
+      // 使用固定尺寸，避免复杂计算
+      await page.screenshot({ 
+        path: imageOutputPath,
+        fullPage: true,
+        omitBackground: true
+      }).catch(screenshotError => {
+        console.error('截图失败:', screenshotError);
+        throw new Error(`截图失败: ${screenshotError.message}`);
+      });
+      
+      console.log(`图片已保存至: ${imageOutputPath}`);
+      return imageOutputPath;
+    } finally {
+      console.log('关闭浏览器');
+      await browser.close().catch(closeError => {
+        console.warn('关闭浏览器出错:', closeError);
+      });
+    }
+  } catch (error) {
+    console.error('生成图片过程中出错:', error);
+    throw new Error(`生成图片失败: ${error.message}`);
   }
 }
 
@@ -325,6 +443,7 @@ setInterval(cleanupTempFiles, 60 * 60 * 1000);
 // 新增API端点 - 从HTML生成图片
 app.get('/api/image/:filename', async (req, res) => {
   try {
+    console.log(`图片API被调用: ${req.params.filename}`);
     const filename = req.params.filename.replace(/\.png$/, '');
     // 添加安全检查，防止路径遍历攻击
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
@@ -335,11 +454,13 @@ app.get('/api/image/:filename', async (req, res) => {
     
     // 检查HTML文件是否存在
     if (!fs.existsSync(htmlPath)) {
-      return res.status(404).json({ error: '找不到HTML文件' });
+      console.error(`HTML文件不存在: ${htmlPath}`);
+      return res.status(404).json({ error: '找不到HTML文件', path: htmlPath });
     }
     
     // 设置超时
     const timeout = setTimeout(() => {
+      console.error('图片生成超时');
       res.status(408).json({ error: '生成图片超时' });
     }, 9000); // 9秒超时，Vercel函数最长10秒
     
@@ -349,11 +470,13 @@ app.get('/api/image/:filename', async (req, res) => {
       
       // 检查图片是否已经存在
       if (fs.existsSync(imageOutputPath)) {
+        console.log(`使用已存在的图片: ${imageOutputPath}`);
         clearTimeout(timeout);
         // 图片已存在，直接发送
         return res.type('image/png').sendFile(imageOutputPath);
       }
       
+      console.log('开始生成图片');
       // 生成图片
       await generateImage(htmlPath, filename);
       
@@ -361,21 +484,24 @@ app.get('/api/image/:filename', async (req, res) => {
       
       // 发送图片
       if (fs.existsSync(imageOutputPath)) {
+        console.log('图片生成成功');
         return res.type('image/png').sendFile(imageOutputPath);
       } else {
-        throw new Error('生成图片失败');
+        console.error(`图片文件不存在: ${imageOutputPath}`);
+        throw new Error(`生成的图片文件未找到: ${imageOutputPath}`);
       }
     } catch (error) {
       clearTimeout(timeout);
-      throw error;
+      console.error('图片生成过程错误:', error);
+      throw new Error(`生成图片过程出错: ${error.message}`);
     }
   } catch (error) {
-    console.error('图片生成失败:', error);
+    console.error('图片生成失败详细信息:', error);
     res.status(500).json({ error: '生成图片失败', details: error.message });
   }
 });
 
-// 修改文本生成API，不再同步生成图片
+// API 路由 - 从文本生成思维导图
 app.post('/api/generate', async (req, res) => {
   try {
     const { markdown } = req.body;
@@ -384,23 +510,31 @@ app.post('/api/generate', async (req, res) => {
       return res.status(400).json({ error: '缺少 Markdown 文本' });
     }
     
+    console.log('开始生成思维导图...');
     const timestamp = Date.now();
     const outputFilename = `markmap-${timestamp}`;
     
-    // 生成思维导图 HTML
-    const htmlPath = await generateMarkmap(markdown, outputFilename);
-    
-    // 生成思维导图文件 (XMind 格式)
-    const xmindPath = await generateXMindFile(markdown, outputFilename);
-    
-    // 返回文件路径
-    res.json({
-      html: `/output/${outputFilename}.html`,
-      image: `/api/image/${outputFilename}.png`,
-      mindmap: `/output/${outputFilename}.json`
-    });
+    try {
+      // 生成思维导图 HTML
+      const htmlPath = await generateMarkmap(markdown, outputFilename);
+      console.log(`HTML生成成功: ${htmlPath}`);
+      
+      // 生成思维导图文件 (XMind 格式)
+      const xmindPath = await generateXMindFile(markdown, outputFilename);
+      console.log(`XMind文件生成成功: ${xmindPath}`);
+      
+      // 返回文件路径
+      res.json({
+        html: `/output/${outputFilename}.html`,
+        image: `/api/image/${outputFilename}.png`,
+        mindmap: `/output/${outputFilename}.json`
+      });
+    } catch (processingError) {
+      console.error('处理错误详情:', processingError);
+      throw new Error(`生成失败: ${processingError.message}`);
+    }
   } catch (error) {
-    console.error('生成失败:', error);
+    console.error('生成失败详细信息:', error);
     res.status(500).json({ error: '生成思维导图失败', details: error.message });
   }
 });
