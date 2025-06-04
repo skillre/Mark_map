@@ -7,6 +7,11 @@ const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
+// 引入markmap库，用于直接生成SVG
+const { Transformer } = require('markmap-lib');
+const { fillTemplate } = require('markmap-common');
+const transformer = new Transformer();
+
 // 配置 puppeteer 以在 Vercel 上运行
 let puppeteer;
 try {
@@ -160,74 +165,85 @@ async function generateMarkmap(markdownContent, outputFilename) {
 }
 
 /**
- * 从 HTML 生成图片
- * @param {string} htmlPath HTML 文件路径
+ * 直接从Markdown生成SVG思维导图
+ * @param {string} markdownContent Markdown内容
  * @param {string} outputFilename 输出文件名
- * @returns {Promise<string>} 图片文件路径
+ * @returns {Promise<string>} SVG文件路径
  */
-async function generateImage(htmlPath, outputFilename) {
-  console.log(`generateImage: 开始从HTML生成图片: ${htmlPath}`);
-  const imageOutputPath = path.join(outputDir, `${outputFilename}.png`);
-  
-  // 检查是否在Vercel环境中或禁用了Puppeteer
-  const disablePuppeteer = process.env.DISABLE_PUPPETEER === 'true';
-  const isVercelEnv = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION;
-
-  // 如果在Vercel环境中或显式禁用了Puppeteer，直接跳过图片生成
-  if (isVercelEnv || disablePuppeteer) {
-    console.log('检测到Vercel环境或禁用了Puppeteer，跳过PNG生成，使用替代方案');
-    return null;
-  }
-  
-  // 获取 Chrome 可执行文件路径和浏览器选项
-  let options = {
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-extensions', '--disable-gpu'],
-    headless: true,
-    defaultViewport: { width: 1200, height: 800 }
-  };
+async function generateSvgMarkmap(markdownContent, outputFilename) {
+  console.log(`generateSvgMarkmap: 开始生成SVG: ${outputFilename}`);
+  const svgOutputPath = path.join(outputDir, `${outputFilename}.svg`);
   
   try {
-    console.log('配置浏览器环境');
-    let browser = null;
-
-    try {
-      // 尝试启动浏览器
-      console.log('启动浏览器');
-      browser = await puppeteer.launch(options);
-      
-      console.log('创建新页面');
-      const page = await browser.newPage();
-      
-      console.log(`导航至HTML页面: ${htmlPath}`);
-      await page.goto(`file://${htmlPath}`, { waitUntil: 'domcontentloaded' });
-      
-      console.log('等待页面加载完成');
-      // 给页面一些时间来渲染
-      await page.waitForTimeout(1000);
-      
-      console.log('开始截图');
-      await page.screenshot({ 
-        path: imageOutputPath,
-        fullPage: true,
-        omitBackground: true
-      });
-      
-      console.log(`图片已保存至: ${imageOutputPath}`);
-      return imageOutputPath;
-    } catch (browserError) {
-      console.error('浏览器操作失败:', browserError);
-      throw new Error(`浏览器操作失败: ${browserError.message}`);
-    } finally {
-      if (browser) {
-        console.log('关闭浏览器');
-        await browser.close().catch(closeError => {
-          console.warn('关闭浏览器出错:', closeError);
-        });
-      }
+    // 确保生成输出目录存在
+    if (!fs.existsSync(outputDir)) {
+      console.log(`创建输出目录: ${outputDir}`);
+      fs.mkdirSync(outputDir, { recursive: true });
     }
+    
+    // 使用markmap-lib将Markdown转换为思维导图数据
+    const { root, features } = transformer.transform(markdownContent);
+    
+    // 生成SVG字符串
+    const assets = {
+      styles: '',
+      scripts: ''
+    };
+    
+    // 基本SVG模板，包含必要的样式和JavaScript
+    const svgTemplate = `
+<svg xmlns="http://www.w3.org/2000/svg" class="markmap" width="800" height="800" style="background-color: white;">
+  <style>
+    .markmap-node {
+      cursor: pointer;
+    }
+    .markmap-node-circle {
+      fill: #fff;
+      stroke-width: 1.5px;
+    }
+    .markmap-node-text {
+      fill: #000;
+      font: 10px sans-serif;
+    }
+    .markmap-link {
+      fill: none;
+    }
+  </style>
+  <g transform="translate(400, 400)">
+    <text x="0" y="0" text-anchor="middle" style="font-family: Arial; font-size: 20px; fill: #333;">
+      思维导图静态预览
+    </text>
+    <text x="0" y="30" text-anchor="middle" style="font-family: Arial; font-size: 16px; fill: #666;">
+      请使用HTML版本获取完整交互体验
+    </text>
+    <g transform="translate(0, 70)">
+      <text x="0" y="0" text-anchor="middle" style="font-family: Arial; font-size: 14px; fill: #333; font-weight: bold;">
+        ${root.content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+      </text>
+      ${root.children.map((child, i) => `
+        <line x1="0" y1="10" x2="${-100 + i * 200/(root.children.length || 1)}" y2="${40}" 
+              style="stroke: #999; stroke-width: 1px;"></line>
+        <text x="${-100 + i * 200/(root.children.length || 1)}" y="${50}" 
+              text-anchor="middle" style="font-family: Arial; font-size: 12px; fill: #666;">
+          ${child.content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+        </text>
+      `).join('')}
+    </g>
+  </g>
+  <text x="400" y="750" text-anchor="middle" style="font-family: Arial; font-size: 14px; fill: #999;">
+    这是静态SVG预览，请使用HTML版本获取完整的交互式思维导图
+  </text>
+</svg>`;
+
+    // 写入SVG文件
+    console.log(`写入SVG文件: ${svgOutputPath}`);
+    fs.writeFileSync(svgOutputPath, svgTemplate);
+    
+    console.log('generateSvgMarkmap: SVG生成完成');
+    return svgOutputPath;
   } catch (error) {
-    console.error('生成图片过程中出错:', error);
-    throw new Error(`生成图片过程中出错: ${error.message}`);
+    console.error('生成SVG失败详细日志:', error);
+    throw new Error(`生成SVG思维导图失败: ${error.message}`);
   }
 }
 
@@ -339,69 +355,39 @@ app.get('/api/image/:filename', async (req, res) => {
       return res.status(404).json({ error: '找不到HTML文件', path: htmlPath });
     }
 
-    // 在Vercel环境中，直接返回SVG占位图或重定向到HTML
-    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION || process.env.DISABLE_PUPPETEER === 'true') {
-      console.log('检测到受限环境，使用替代方案');
-      // 尝试使用SVG作为占位图
-      const placeholderSvgPath = path.join(__dirname, '../public/placeholder.svg');
-      
-      if (fs.existsSync(placeholderSvgPath)) {
-        console.log('使用SVG占位图');
-        return res.type('image/svg+xml').sendFile(placeholderSvgPath);
-      } else {
-        // 没有SVG占位图，重定向到HTML
-        console.log('没有可用图片，返回HTML重定向');
-        return res.status(307).json({ 
-          error: '思维导图图片不可用',
-          redirect: `/output/${filename}.html`,
-          message: '请使用HTML版本查看'
-        });
+    // 检查对应的markdown文件是否存在
+    const markdownPath = path.join(uploadDir, `${filename}.md`);
+    if (fs.existsSync(markdownPath)) {
+      try {
+        // 如果有markdown源文件，尝试直接生成SVG
+        const markdown = fs.readFileSync(markdownPath, 'utf-8');
+        await generateSvgMarkmap(markdown, filename);
+      } catch (svgError) {
+        console.error('从Markdown生成SVG失败:', svgError);
       }
     }
 
-    try {
-      const imageOutputPath = path.join(outputDir, `${filename}.png`);
-      
-      // 如果图片文件已存在，直接返回
-      if (fs.existsSync(imageOutputPath)) {
-        console.log(`返回PNG图片文件: ${imageOutputPath}`);
-        return res.type('image/png').sendFile(imageOutputPath);
-      }
-      
-      // 尝试生成图片
-      console.log('尝试生成PNG图片');
-      const generatedImagePath = await generateImage(htmlPath, filename);
-      
-      // 图片生成成功，返回
-      if (generatedImagePath && fs.existsSync(generatedImagePath)) {
-        console.log('PNG图片生成成功');
-        return res.type('image/png').sendFile(generatedImagePath);
-      }
-      
-      // 图片生成失败，尝试使用SVG占位图
-      const placeholderSvgPath = path.join(__dirname, '../public/placeholder.svg');
-      if (fs.existsSync(placeholderSvgPath)) {
-        console.log('使用SVG占位图');
-        return res.type('image/svg+xml').sendFile(placeholderSvgPath);
-      }
-      
-      // 没有图片可用，告诉客户端查看HTML版本
-      console.log('没有可用图片，返回HTML重定向');
-      return res.status(307).json({ 
-        error: '思维导图图片不可用',
-        redirect: `/output/${filename}.html`,
-        message: '请使用HTML版本查看'
-      });
-      
-    } catch (error) {
-      console.error('图片处理错误:', error);
-      return res.status(500).json({ 
-        error: '图片处理错误', 
-        details: error.message,
-        redirect: `/output/${filename}.html`,
-        message: '请使用HTML版本查看思维导图'
-      });
+    // 尝试使用已生成的SVG文件
+    const svgPath = path.join(outputDir, `${filename}.svg`);
+    if (fs.existsSync(svgPath)) {
+      console.log('返回已生成的SVG文件');
+      return res.type('image/svg+xml').sendFile(svgPath);
     }
+
+    // 没有SVG文件，使用占位图
+    const placeholderSvgPath = path.join(__dirname, '../public/placeholder.svg');
+    if (fs.existsSync(placeholderSvgPath)) {
+      console.log('使用SVG占位图');
+      return res.type('image/svg+xml').sendFile(placeholderSvgPath);
+    }
+    
+    // 如果没有可用的图片，重定向到HTML版本
+    console.log('没有可用图片，返回HTML重定向');
+    return res.status(307).json({ 
+      error: '思维导图图片不可用',
+      redirect: `/output/${filename}.html`,
+      message: '请使用HTML版本查看'
+    });
   } catch (error) {
     console.error('图片生成失败详细信息:', error);
     res.status(500).json({ error: '生成图片失败', details: error.message });
@@ -422,9 +408,21 @@ app.post('/api/generate', async (req, res) => {
     const outputFilename = `markmap-${timestamp}`;
     
     try {
+      // 保存markdown源文件，方便后续生成SVG
+      const markdownPath = path.join(uploadDir, `${outputFilename}.md`);
+      fs.writeFileSync(markdownPath, markdown);
+
       // 生成思维导图 HTML
       const htmlPath = await generateMarkmap(markdown, outputFilename);
       console.log(`HTML生成成功: ${htmlPath}`);
+      
+      // 生成SVG版本
+      try {
+        const svgPath = await generateSvgMarkmap(markdown, outputFilename);
+        console.log(`SVG生成成功: ${svgPath}`);
+      } catch (svgError) {
+        console.error('SVG生成失败:', svgError);
+      }
       
       // 生成思维导图文件 (XMind 格式)
       const xmindPath = await generateXMindFile(markdown, outputFilename);
@@ -433,7 +431,7 @@ app.post('/api/generate', async (req, res) => {
       // 返回文件路径
       res.json({
         html: `/output/${outputFilename}.html`,
-        image: `/api/image/${outputFilename}.png`,
+        image: `/api/image/${outputFilename}.svg`,  // 返回SVG而不是PNG
         mindmap: `/output/${outputFilename}.json`
       });
     } catch (processingError) {
@@ -446,7 +444,7 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
-// 修改文件上传API，不再同步生成图片
+// 修改文件上传API，现在使用SVG而非PNG
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -459,8 +457,20 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     // 读取上传的 Markdown 文件
     const markdown = fs.readFileSync(req.file.path, 'utf-8');
     
+    // 保存markdown源文件，方便后续生成SVG
+    const markdownPath = path.join(uploadDir, `${outputFilename}.md`);
+    fs.writeFileSync(markdownPath, markdown);
+    
     // 生成思维导图 HTML
     const htmlPath = await generateMarkmap(markdown, outputFilename);
+    
+    // 生成SVG版本
+    try {
+      const svgPath = await generateSvgMarkmap(markdown, outputFilename);
+      console.log(`SVG生成成功: ${svgPath}`);
+    } catch (svgError) {
+      console.error('SVG生成失败:', svgError);
+    }
     
     // 生成思维导图文件 (XMind 格式)
     const xmindPath = await generateXMindFile(markdown, outputFilename);
@@ -468,7 +478,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     // 返回文件路径
     res.json({
       html: `/output/${outputFilename}.html`,
-      image: `/api/image/${outputFilename}.png`,
+      image: `/api/image/${outputFilename}.svg`,  // 返回SVG而不是PNG
       mindmap: `/output/${outputFilename}.json`
     });
   } catch (error) {

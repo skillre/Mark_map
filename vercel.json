@@ -12,7 +12,6 @@
     { "src": "/(.*)", "dest": "/$1" }
   ],
   "env": {
-    "NODE_ENV": "production",
-    "DISABLE_PUPPETEER": "true"
+    "NODE_ENV": "production"
   }
 } 
