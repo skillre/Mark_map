@@ -7,18 +7,6 @@ const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
-// 引入markmap库
-let Transformer;
-let Markmap;
-try {
-  // 导入markmap库 - 用于直接在Node.js中生成HTML
-  const markmapLib = require('markmap-lib');
-  Transformer = markmapLib.Transformer;
-} catch (e) {
-  console.error('导入markmap-lib失败:', e);
-  Transformer = null;
-}
-
 // 配置 puppeteer 以在 Vercel 上运行
 let puppeteer;
 try {
@@ -93,156 +81,66 @@ async function generateMarkmap(markdownContent, outputFilename) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
     
-    // 直接使用markmap库生成HTML，不再使用CLI命令
-    let markmapHtml;
-
-    // 检查Transformer是否可用
-    if (!Transformer) {
-      console.log('markmap-lib的Transformer不可用，尝试重新导入');
-      try {
-        const markmapLib = require('markmap-lib');
-        if (markmapLib && markmapLib.Transformer) {
-          console.log('重新导入markmap-lib成功');
-          Transformer = markmapLib.Transformer;
-        } else {
-          console.error('markmap-lib导入成功，但Transformer未定义');
-        }
-      } catch (importError) {
-        console.error('重新导入markmap-lib失败:', importError);
-      }
-    }
-
-    if (Transformer) {
-      console.log('使用markmap-lib的Transformer生成思维导图');
-      try {
-        // 使用markmap-lib生成思维导图数据
-        const transformer = new Transformer();
-        console.log('Transformer实例创建成功');
-        
-        const transformResult = transformer.transform(markdownContent);
-        console.log('Markdown转换成功');
-        
-        if (!transformResult || !transformResult.root) {
-          throw new Error('转换结果无效，缺少root属性');
-        }
-        
-        const { root, features } = transformResult;
-        
-        // 生成HTML
-        console.log('开始生成HTML');
-        markmapHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Markdown思维导图</title>
-  <script src="https://cdn.jsdelivr.net/npm/d3@6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.14.4"></script>
-  <style>
-    body { margin: 0; padding: 0; height: 100vh; }
-    #mindmap { width: 100%; height: 100%; }
-  </style>
-</head>
-<body>
-  <svg id="mindmap"></svg>
-  <script>
-    // 思维导图数据 - 由markmap-lib生成
-    const markmapData = ${JSON.stringify(root)};
+    console.log('创建基本的思维导图HTML');
     
-    // 在页面加载完成后渲染
-    document.addEventListener('DOMContentLoaded', function() {
-      try {
-        if (!window.markmap) {
-          console.error('markmap库未加载成功');
-          document.body.innerHTML = '<div style="color:red;padding:20px;">加载思维导图库失败，请刷新页面重试</div>';
-          return;
-        }
-        
-        const { Markmap } = window.markmap;
-        const svg = document.getElementById('mindmap');
-        const mm = Markmap.create(svg, {
-          autoFit: true,
-          zoom: true
-        }, markmapData);
-      } catch(err) {
-        console.error('渲染思维导图失败:', err);
-        document.body.innerHTML = '<div style="color:red;padding:20px;">渲染思维导图失败: ' + err.message + '</div>';
-      }
-    });
-  </script>
-</body>
-</html>`;
-      } catch (transformError) {
-        console.error('使用Transformer生成过程中出错:', transformError);
-        throw transformError;
-      }
-    } else {
-      console.log('使用备用方案生成思维导图HTML');
-      // 如果markmap-lib导入失败，使用备用方案
-      markmapHtml = `
+    // 使用最简单的在线方式生成思维导图，不尝试在服务端解析
+    const markmapHtml = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Markmap</title>
-  <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader"></script>
+  <title>思维导图</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@6.7.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.14.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.14.0/dist/browser/index.js"></script>
   <style>
     html, body, svg { height: 100%; width: 100%; margin: 0; padding: 0; }
-    .error { color: red; padding: 20px; }
+    .loading { font-family: sans-serif; font-size: 16px; padding: 20px; }
+    .error { color: red; padding: 20px; font-family: sans-serif; font-size: 16px; }
   </style>
 </head>
 <body>
-  <svg id="mindmap"></svg>
+  <div id="loading" class="loading">正在加载思维导图...</div>
   <div id="error" class="error" style="display:none;"></div>
+  <svg id="mindmap" style="display:none;"></svg>
   <script>
-    // 在页面加载完成后执行
-    document.addEventListener('DOMContentLoaded', () => {
-      try {
-        const markdown = ${JSON.stringify(markdownContent)};
-        const errorEl = document.getElementById('error');
-        
-        // 使用markmap-autoloader的API
-        if (!window.markmap || !window.markmap.autoLoader) {
-          errorEl.textContent = 'markmap库加载失败，请检查网络连接';
-          errorEl.style.display = 'block';
-          return;
-        }
-        
-        window.markmap.autoLoader.load()
-          .then(() => {
-            try {
-              // 创建Markmap实例
-              const { Markmap } = window.markmap;
-              if (!window.markmap.Transformer) {
-                throw new Error('Transformer未加载');
-              }
-              const transformer = new window.markmap.Transformer();
-              const { root } = transformer.transform(markdown);
-              
-              // 初始化mindmap
-              const mm = Markmap.create('#mindmap', { autoFit: true }, root);
-            } catch (renderError) {
-              errorEl.textContent = '渲染思维导图失败: ' + renderError.message;
-              errorEl.style.display = 'block';
-              console.error('渲染错误:', renderError);
-            }
-          })
-          .catch(loadError => {
-            errorEl.textContent = '加载思维导图库失败: ' + loadError.message;
-            errorEl.style.display = 'block';
-            console.error('加载错误:', loadError);
-          });
-      } catch (globalError) {
-        document.body.innerHTML = '<div class="error">页面初始化错误: ' + globalError.message + '</div>';
-        console.error('全局错误:', globalError);
+  document.addEventListener('DOMContentLoaded', function() {
+    const loadingEl = document.getElementById('loading');
+    const errorEl = document.getElementById('error');
+    const svgEl = document.getElementById('mindmap');
+    
+    try {
+      // 原始Markdown内容
+      const markdown = ${JSON.stringify(markdownContent)};
+      
+      if (!window.markmap || !window.markmap.Transformer) {
+        throw new Error('思维导图库加载失败');
       }
-    });
+      
+      // 使用markmap-lib转换Markdown
+      const transformer = new window.markmap.Transformer();
+      const { root } = transformer.transform(markdown);
+      
+      // 渲染思维导图
+      const mm = window.markmap.Markmap.create(svgEl, {
+        autoFit: true, 
+        zoom: true
+      }, root);
+      
+      // 显示思维导图
+      loadingEl.style.display = 'none';
+      svgEl.style.display = 'block';
+    } catch (error) {
+      console.error('思维导图渲染失败:', error);
+      loadingEl.style.display = 'none';
+      errorEl.textContent = '思维导图渲染失败: ' + (error.message || '未知错误');
+      errorEl.style.display = 'block';
+    }
+  });
   </script>
 </body>
 </html>`;
-    }
     
     // 写入HTML文件
     console.log(`写入HTML文件: ${htmlOutputPath}`);
