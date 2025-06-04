@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown思维导图 API文档</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f8f9fa;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #2c3e50;
+    }
+    
+    h2 {
+      margin-top: 40px;
+      margin-bottom: 20px;
+      color: #2c3e50;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    
+    h3 {
+      margin-top: 25px;
+      margin-bottom: 15px;
+      color: #3498db;
+    }
+    
+    p {
+      margin-bottom: 15px;
+    }
+    
+    code {
+      font-family: Consolas, Monaco, 'Andale Mono', monospace;
+      background-color: #f5f5f5;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+    
+    pre {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+    
+    pre code {
+      background-color: transparent;
+      padding: 0;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    
+    table th, table td {
+      padding: 10px;
+      border: 1px solid #ddd;
+      text-align: left;
+    }
+    
+    table th {
+      background-color: #f5f5f5;
+    }
+    
+    .method {
+      display: inline-block;
+      padding: 3px 6px;
+      border-radius: 3px;
+      color: white;
+      font-size: 0.8em;
+      font-weight: bold;
+    }
+    
+    .method.post {
+      background-color: #49cc90;
+    }
+    
+    .method.get {
+      background-color: #61affe;
+    }
+    
+    .endpoint {
+      margin-bottom: 40px;
+    }
+    
+    .description {
+      margin-bottom: 15px;
+    }
+    
+    .parameters {
+      margin-bottom: 20px;
+    }
+    
+    .response {
+      margin-top: 20px;
+    }
+    
+    .note {
+      background-color: #fff8dc;
+      padding: 15px;
+      border-left: 4px solid #ffd700;
+      margin-bottom: 20px;
+    }
+    
+    .warning {
+      background-color: #ffe6e6;
+      padding: 15px;
+      border-left: 4px solid #ff6b6b;
+      margin-bottom: 20px;
+    }
+    
+    .toc {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 30px;
+    }
+    
+    .toc ul {
+      list-style-type: none;
+      padding-left: 20px;
+    }
+    
+    .toc li {
+      margin-bottom: 5px;
+    }
+    
+    .toc a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    
+    .toc a:hover {
+      text-decoration: underline;
+    }
+    
+    a.back-to-top {
+      display: block;
+      text-align: right;
+      margin-top: 10px;
+      color: #3498db;
+      text-decoration: none;
+    }
+    
+    a.back-to-top:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Markdown思维导图 API文档</h1>
+    
+    <div class="toc">
+      <h3>目录</h3>
+      <ul>
+        <li><a href="#introduction">1. 简介</a></li>
+        <li><a href="#authentication">2. 鉴权</a></li>
+        <li><a href="#rate-limits">3. 使用限制</a></li>
+        <li><a href="#endpoints">4. API端点</a>
+          <ul>
+            <li><a href="#generate-from-text">4.1. 从文本生成思维导图</a></li>
+            <li><a href="#generate-from-file">4.2. 从文件生成思维导图</a></li>
+            <li><a href="#get-svg">4.3. 获取SVG图片</a></li>
+          </ul>
+        </li>
+        <li><a href="#response-format">5. 响应格式</a></li>
+        <li><a href="#examples">6. 示例</a></li>
+      </ul>
+    </div>
+    
+    <h2 id="introduction">1. 简介</h2>
+    <p>Markdown思维导图API允许您通过HTTP请求从Markdown文本生成交互式思维导图。API支持以下功能：</p>
+    <ul>
+      <li>从文本内容生成思维导图</li>
+      <li>从Markdown文件生成思维导图</li>
+      <li>获取HTML、SVG和JSON格式的思维导图</li>
+    </ul>
+    
+    <h2 id="authentication">2. 鉴权</h2>
+    <p>所有API请求都需要提供API密钥进行鉴权。您可以通过以下两种方式提供API密钥：</p>
+    
+    <h3>HTTP请求头</h3>
+    <pre><code>X-API-Key: your-api-key</code></pre>
+    
+    <h3>URL参数</h3>
+    <pre><code>?apiKey=your-api-key</code></pre>
+    
+    <div class="note">
+      <strong>注意：</strong> 推荐使用HTTP请求头方式进行鉴权，这样可以避免API密钥在URL中暴露。
+    </div>
+    
+    <h2 id="rate-limits">3. 使用限制</h2>
+    <p>为了保证服务质量，API有以下使用限制：</p>
+    <ul>
+      <li>每个API密钥每小时最多请求100次</li>
+      <li>Markdown文本大小不超过500KB</li>
+      <li>节点数量限制在500个以内</li>
+    </ul>
+    
+    <h2 id="endpoints">4. API端点</h2>
+    
+    <div class="endpoint" id="generate-from-text">
+      <h3>4.1. 从文本生成思维导图</h3>
+      <p class="method post">POST</p> <code>/api/v1/generate</code>
+      
+      <div class="description">
+        <p>从Markdown文本生成思维导图，并返回访问链接。</p>
+      </div>
+      
+      <div class="parameters">
+        <h4>请求参数</h4>
+        <p>Content-Type: application/json</p>
+        <table>
+          <tr>
+            <th>参数名</th>
+            <th>类型</th>
+            <th>必填</th>
+            <th>描述</th>
+          </tr>
+          <tr>
+            <td>markdown</td>
+            <td>string</td>
+            <td>是</td>
+            <td>Markdown格式的文本内容</td>
+          </tr>
+          <tr>
+            <td>title</td>
+            <td>string</td>
+            <td>否</td>
+            <td>思维导图的标题，默认为"思维导图"</td>
+          </tr>
+        </table>
+      </div>
+      
+      <div class="response">
+        <h4>响应</h4>
+        <pre><code>{
+  "success": true,
+  "data": {
+    "id": "markmap-1748371234-a1b2c3",
+    "title": "思维导图",
+    "created_at": "2023-06-15T08:30:00.000Z",
+    "links": {
+      "html": "https://example.com/output/markmap-1748371234-a1b2c3.html",
+      "svg": "https://example.com/api/image/markmap-1748371234-a1b2c3.svg",
+      "mindmap": "https://example.com/output/markmap-1748371234-a1b2c3.json"
+    },
+    "urls": {
+      "html_url": "https://example.com/output/markmap-1748371234-a1b2c3.html",
+      "svg_url": "https://example.com/api/image/markmap-1748371234-a1b2c3.svg",
+      "mindmap_url": "https://example.com/output/markmap-1748371234-a1b2c3.json"
+    }
+  }
+}</code></pre>
+      </div>
+      
+      <a href="#" class="back-to-top">返回顶部 ↑</a>
+    </div>
+    
+    <div class="endpoint" id="generate-from-file">
+      <h3>4.2. 从文件生成思维导图</h3>
+      <p class="method post">POST</p> <code>/api/v1/upload</code>
+      
+      <div class="description">
+        <p>上传Markdown文件并生成思维导图，返回访问链接。</p>
+      </div>
+      
+      <div class="parameters">
+        <h4>请求参数</h4>
+        <p>Content-Type: multipart/form-data</p>
+        <table>
+          <tr>
+            <th>参数名</th>
+            <th>类型</th>
+            <th>必填</th>
+            <th>描述</th>
+          </tr>
+          <tr>
+            <td>file</td>
+            <td>file</td>
+            <td>是</td>
+            <td>Markdown文件（.md, .markdown, .txt）</td>
+          </tr>
+        </table>
+      </div>
+      
+      <div class="response">
+        <h4>响应</h4>
+        <pre><code>{
+  "success": true,
+  "data": {
+    "id": "markmap-1748371234-a1b2c3",
+    "title": "example.md",
+    "created_at": "2023-06-15T08:30:00.000Z",
+    "links": {
+      "html": "https://example.com/output/markmap-1748371234-a1b2c3.html",
+      "svg": "https://example.com/api/image/markmap-1748371234-a1b2c3.svg",
+      "mindmap": "https://example.com/output/markmap-1748371234-a1b2c3.json"
+    },
+    "urls": {
+      "html_url": "https://example.com/output/markmap-1748371234-a1b2c3.html",
+      "svg_url": "https://example.com/api/image/markmap-1748371234-a1b2c3.svg",
+      "mindmap_url": "https://example.com/output/markmap-1748371234-a1b2c3.json"
+    }
+  }
+}</code></pre>
+      </div>
+      
+      <a href="#" class="back-to-top">返回顶部 ↑</a>
+    </div>
+    
+    <div class="endpoint" id="get-svg">
+      <h3>4.3. 获取SVG图片</h3>
+      <p class="method get">GET</p> <code>/api/image/:filename.svg</code>
+      
+      <div class="description">
+        <p>获取指定思维导图的SVG图片。</p>
+      </div>
+      
+      <div class="parameters">
+        <h4>URL参数</h4>
+        <table>
+          <tr>
+            <th>参数名</th>
+            <th>类型</th>
+            <th>必填</th>
+            <th>描述</th>
+          </tr>
+          <tr>
+            <td>filename</td>
+            <td>string</td>
+            <td>是</td>
+            <td>思维导图的文件名（不包含扩展名）</td>
+          </tr>
+        </table>
+      </div>
+      
+      <div class="response">
+        <h4>响应</h4>
+        <p>Content-Type: image/svg+xml</p>
+        <p>返回SVG格式的思维导图图片。</p>
+      </div>
+      
+      <a href="#" class="back-to-top">返回顶部 ↑</a>
+    </div>
+    
+    <h2 id="response-format">5. 响应格式</h2>
+    <p>API响应统一使用以下格式：</p>
+    
+    <h3>成功响应</h3>
+    <pre><code>{
+  "success": true,
+  "data": {
+    // 响应数据
+  }
+}</code></pre>
+    
+    <h3>错误响应</h3>
+    <pre><code>{
+  "success": false,
+  "error": "错误代码",
+  "message": "错误信息"
+}</code></pre>
+    
+    <h3>常见错误代码</h3>
+    <table>
+      <tr>
+        <th>HTTP状态码</th>
+        <th>错误代码</th>
+        <th>描述</th>
+      </tr>
+      <tr>
+        <td>400</td>
+        <td>Missing markdown content</td>
+        <td>缺少Markdown文本</td>
+      </tr>
+      <tr>
+        <td>400</td>
+        <td>No file uploaded</td>
+        <td>缺少文件</td>
+      </tr>
+      <tr>
+        <td>401</td>
+        <td>Invalid API key</td>
+        <td>无效的API密钥</td>
+      </tr>
+      <tr>
+        <td>429</td>
+        <td>Rate limit exceeded</td>
+        <td>API使用率超出限制</td>
+      </tr>
+      <tr>
+        <td>500</td>
+        <td>Failed to generate mindmap</td>
+        <td>生成思维导图失败</td>
+      </tr>
+    </table>
+    
+    <h2 id="examples">6. 示例</h2>
+    
+    <h3>使用curl从文本生成思维导图</h3>
+    <pre><code>curl -X POST \
+  https://example.com/api/v1/generate \
+  -H 'Content-Type: application/json' \
+  -H 'X-API-Key: your-api-key' \
+  -d '{
+    "markdown": "# 思维导图\n## 第一章\n### 第一节\n### 第二节\n## 第二章\n### 第一节\n### 第二节",
+    "title": "示例思维导图"
+  }'</code></pre>
+    
+    <h3>使用curl上传文件生成思维导图</h3>
+    <pre><code>curl -X POST \
+  https://example.com/api/v1/upload \
+  -H 'X-API-Key: your-api-key' \
+  -F 'file=@/path/to/your/file.md'</code></pre>
+    
+    <h3>使用JavaScript从文本生成思维导图</h3>
+    <pre><code>// 使用fetch API
+fetch('https://example.com/api/v1/generate', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-Key': 'your-api-key'
+  },
+  body: JSON.stringify({
+    markdown: '# 思维导图\n## 第一章\n### 第一节\n### 第二节\n## 第二章\n### 第一节\n### 第二节',
+    title: '示例思维导图'
+  })
+})
+.then(response => response.json())
+.then(data => {
+  console.log('成功:', data);
+  // 使用返回的链接
+  window.open(data.data.links.html, '_blank');
+})
+.catch(error => {
+  console.error('错误:', error);
+});</code></pre>
+    
+    <div class="note">
+      <strong>提示：</strong> 生成的思维导图链接会在24小时后自动过期，请及时保存或使用。
+    </div>
+    
+    <div class="warning">
+      <strong>注意：</strong> 请勿公开您的API密钥，以防被他人滥用。如果怀疑API密钥泄露，请联系管理员重置。
+    </div>
+  </div>
+  
+  <script>
+    // 平滑滚动到锚点
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        
+        const targetId = this.getAttribute('href');
+        if (targetId === '#') return;
+        
+        const targetElement = document.querySelector(targetId);
+        if (targetElement) {
+          window.scrollTo({
+            top: targetElement.offsetTop,
+            behavior: 'smooth'
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html> 

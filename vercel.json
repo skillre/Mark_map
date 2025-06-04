@@ -12,6 +12,8 @@
     { "src": "/(.*)", "dest": "/$1" }
   ],
   "env": {
-    "NODE_ENV": "production"
-  }
+    "NODE_ENV": "production",
+    "API_KEYS": "default-dev-key,vercel-prod-key"
+  },
+  "buildCommand": "npm install"
 } 

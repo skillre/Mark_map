@@ -6,6 +6,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
+const crypto = require('crypto');
 
 // 引入markmap库，用于直接生成SVG
 const { Transformer } = require('markmap-lib');
@@ -24,6 +25,11 @@ try {
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// API密钥配置
+const API_KEYS = (process.env.API_KEYS || 'dev-key,test-key').split(',');
+const API_RATE_LIMIT = parseInt(process.env.API_RATE_LIMIT || '100'); // 每个API密钥每小时请求限制
+const apiRateLimits = {}; // 用于跟踪API使用情况
 
 // 在Vercel环境中使用/tmp目录
 const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION;
@@ -58,10 +64,64 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' })); // 限制表单�
 app.use(express.static(path.join(__dirname, '../public')));
 app.use('/output', express.static(outputDir));
 
+// API密钥验证中间件
+function validateApiKey(req, res, next) {
+  // 跳过Web界面的验证
+  if (req.path === '/' || req.path.startsWith('/output/') || req.path === '/api-docs') {
+    return next();
+  }
+  
+  // 从请求中获取API密钥
+  const apiKey = req.headers['x-api-key'] || req.query.apiKey;
+  
+  // 验证API密钥
+  if (!apiKey || !API_KEYS.includes(apiKey)) {
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid API key',
+      message: '无效的API密钥'
+    });
+  }
+  
+  // 检查API使用率限制
+  const now = Date.now();
+  const hourAgo = now - 60 * 60 * 1000;
+  
+  // 初始化该API密钥的使用记录
+  if (!apiRateLimits[apiKey]) {
+    apiRateLimits[apiKey] = [];
+  }
+  
+  // 清除一小时前的记录
+  apiRateLimits[apiKey] = apiRateLimits[apiKey].filter(timestamp => timestamp > hourAgo);
+  
+  // 检查是否超过限制
+  if (apiRateLimits[apiKey].length >= API_RATE_LIMIT) {
+    return res.status(429).json({
+      success: false,
+      error: 'Rate limit exceeded',
+      message: 'API使用率超出限制，请稍后再试'
+    });
+  }
+  
+  // 记录本次使用
+  apiRateLimits[apiKey].push(now);
+  
+  // 继续处理请求
+  next();
+}
+
+// 应用API密钥验证中间件
+app.use(validateApiKey);
+
 // 添加基本错误处理中间件
 app.use((err, req, res, next) => {
   console.error('应用错误:', err);
-  res.status(500).json({ error: '服务器错误', details: err.message });
+  res.status(500).json({
+    success: false,
+    error: '服务器错误',
+    message: err.message
+  });
 });
 
 /**
@@ -297,6 +357,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
+// API文档页面
+app.get('/api-docs', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/api-docs.html'));
+});
+
 // 定期清理临时文件，防止存储空间占满
 function cleanupTempFiles() {
   try {
@@ -337,13 +402,12 @@ function cleanupTempFiles() {
 // 每小时运行一次清理
 setInterval(cleanupTempFiles, 60 * 60 * 1000);
 
-// 新增API端点 - 提供SVG图片
+// 提供SVG图片
 app.get('/api/image/:filename', async (req, res) => {
   try {
     // 详细记录请求信息
     console.log(`图片API被调用: ${req.params.filename}`);
     console.log(`请求完整URL: ${req.originalUrl}`);
-    console.log(`请求头: ${JSON.stringify(req.headers)}`);
     
     // 移除所有可能的文件扩展名
     const rawFilename = req.params.filename;
@@ -353,7 +417,10 @@ app.get('/api/image/:filename', async (req, res) => {
     
     // 添加安全检查，防止路径遍历攻击
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-      return res.status(400).json({ error: '无效的文件名' });
+      return res.status(400).json({
+        success: false,
+        error: '无效的文件名'
+      });
     }
     
     // 尝试多种可能的文件路径
@@ -421,32 +488,6 @@ app.get('/api/image/:filename', async (req, res) => {
       }
     }
     
-    // 列出目录内容，帮助调试
-    console.log('输出目录内容:');
-    if (fs.existsSync(outputDir)) {
-      fs.readdirSync(outputDir).forEach(file => {
-        console.log(` - ${file}`);
-      });
-    } else {
-      console.log('输出目录不存在');
-    }
-    
-    console.log('上传目录内容:');
-    if (fs.existsSync(uploadDir)) {
-      fs.readdirSync(uploadDir).forEach(file => {
-        console.log(` - ${file}`);
-      });
-    } else {
-      console.log('上传目录不存在');
-    }
-    
-    // 如果所有尝试都失败，返回默认SVG
-    const placeholderSvgPath = path.join(__dirname, '../public/placeholder.svg');
-    if (fs.existsSync(placeholderSvgPath)) {
-      console.log(`使用占位图: ${placeholderSvgPath}`);
-      return res.type('image/svg+xml').sendFile(placeholderSvgPath);
-    }
-    
     // 生成内联SVG响应
     console.log('生成内联SVG响应');
     const inlineSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600">
@@ -478,7 +519,152 @@ app.get('/api/image/:filename', async (req, res) => {
   }
 });
 
-// API 路由 - 从文本生成思维导图
+// 标准化API接口 - 从文本生成思维导图
+app.post('/api/v1/generate', async (req, res) => {
+  try {
+    const { markdown, title } = req.body;
+    
+    if (!markdown) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing markdown content',
+        message: '缺少Markdown文本'
+      });
+    }
+    
+    console.log('开始生成思维导图...');
+    const timestamp = Date.now();
+    // 生成唯一ID，避免冲突
+    const uniqueId = crypto.randomBytes(4).toString('hex');
+    const outputFilename = `markmap-${timestamp}-${uniqueId}`;
+    
+    try {
+      // 保存markdown源文件，方便后续生成SVG
+      const markdownPath = path.join(uploadDir, `${outputFilename}.md`);
+      fs.writeFileSync(markdownPath, markdown);
+
+      // 生成思维导图 HTML
+      const htmlPath = await generateMarkmap(markdown, outputFilename);
+      console.log(`HTML生成成功: ${htmlPath}`);
+      
+      // 生成SVG版本
+      try {
+        const svgPath = await generateSvgMarkmap(markdown, outputFilename);
+        console.log(`SVG生成成功: ${svgPath}`);
+      } catch (svgError) {
+        console.error('SVG生成失败:', svgError);
+      }
+      
+      // 生成思维导图文件 (XMind 格式)
+      const xmindPath = await generateXMindFile(markdown, outputFilename);
+      console.log(`XMind文件生成成功: ${xmindPath}`);
+      
+      // 构建基础URL
+      const baseUrl = req.protocol + '://' + req.get('host');
+      
+      // 返回标准化的API响应
+      res.json({
+        success: true,
+        data: {
+          id: outputFilename,
+          title: title || '思维导图',
+          created_at: new Date().toISOString(),
+          links: {
+            html: `${baseUrl}/output/${outputFilename}.html`,
+            svg: `${baseUrl}/api/image/${outputFilename}.svg`,
+            mindmap: `${baseUrl}/output/${outputFilename}.json`
+          },
+          urls: {
+            html_url: `${baseUrl}/output/${outputFilename}.html`,
+            svg_url: `${baseUrl}/api/image/${outputFilename}.svg`,
+            mindmap_url: `${baseUrl}/output/${outputFilename}.json`
+          }
+        }
+      });
+    } catch (processingError) {
+      console.error('处理错误详情:', processingError);
+      throw new Error(`生成失败: ${processingError.message}`);
+    }
+  } catch (error) {
+    console.error('生成失败详细信息:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate mindmap',
+      message: error.message
+    });
+  }
+});
+
+// 标准化API接口 - 文件上传
+app.post('/api/v1/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded',
+        message: '缺少文件'
+      });
+    }
+    
+    const timestamp = Date.now();
+    // 生成唯一ID，避免冲突
+    const uniqueId = crypto.randomBytes(4).toString('hex');
+    const outputFilename = `markmap-${timestamp}-${uniqueId}`;
+    
+    // 读取上传的 Markdown 文件
+    const markdown = fs.readFileSync(req.file.path, 'utf-8');
+    
+    // 保存markdown源文件，方便后续生成SVG
+    const markdownPath = path.join(uploadDir, `${outputFilename}.md`);
+    fs.writeFileSync(markdownPath, markdown);
+    
+    // 生成思维导图 HTML
+    const htmlPath = await generateMarkmap(markdown, outputFilename);
+    
+    // 生成SVG版本
+    try {
+      const svgPath = await generateSvgMarkmap(markdown, outputFilename);
+      console.log(`SVG生成成功: ${svgPath}`);
+    } catch (svgError) {
+      console.error('SVG生成失败:', svgError);
+    }
+    
+    // 生成思维导图文件 (XMind 格式)
+    const xmindPath = await generateXMindFile(markdown, outputFilename);
+    
+    // 构建基础URL
+    const baseUrl = req.protocol + '://' + req.get('host');
+    
+    // 返回标准化的API响应
+    res.json({
+      success: true,
+      data: {
+        id: outputFilename,
+        title: req.file.originalname || '思维导图',
+        created_at: new Date().toISOString(),
+        links: {
+          html: `${baseUrl}/output/${outputFilename}.html`,
+          svg: `${baseUrl}/api/image/${outputFilename}.svg`,
+          mindmap: `${baseUrl}/output/${outputFilename}.json`
+        },
+        urls: {
+          html_url: `${baseUrl}/output/${outputFilename}.html`,
+          svg_url: `${baseUrl}/api/image/${outputFilename}.svg`,
+          mindmap_url: `${baseUrl}/output/${outputFilename}.json`
+        }
+      }
+    });
+  } catch (error) {
+    console.error('生成失败:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate mindmap',
+      message: error.message
+    });
+  }
+});
+
+// 兼容旧版API - 从文本生成思维导图
 app.post('/api/generate', async (req, res) => {
   try {
     const { markdown } = req.body;
@@ -489,7 +675,9 @@ app.post('/api/generate', async (req, res) => {
     
     console.log('开始生成思维导图...');
     const timestamp = Date.now();
-    const outputFilename = `markmap-${timestamp}`;
+    // 添加随机后缀，避免冲突
+    const uniqueId = crypto.randomBytes(2).toString('hex');
+    const outputFilename = `markmap-${timestamp}-${uniqueId}`;
     
     try {
       // 保存markdown源文件，方便后续生成SVG
@@ -515,7 +703,7 @@ app.post('/api/generate', async (req, res) => {
       // 返回文件路径
       res.json({
         html: `/output/${outputFilename}.html`,
-        image: `/api/image/${outputFilename}.svg`,  // 返回SVG而不是PNG
+        image: `/api/image/${outputFilename}.svg`,
         mindmap: `/output/${outputFilename}.json`
       });
     } catch (processingError) {
@@ -528,7 +716,7 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
-// 修改文件上传API，现在使用SVG而非PNG
+// 兼容旧版API - 文件上传
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -536,7 +724,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     }
     
     const timestamp = Date.now();
-    const outputFilename = `markmap-${timestamp}`;
+    // 添加随机后缀，避免冲突
+    const uniqueId = crypto.randomBytes(2).toString('hex');
+    const outputFilename = `markmap-${timestamp}-${uniqueId}`;
     
     // 读取上传的 Markdown 文件
     const markdown = fs.readFileSync(req.file.path, 'utf-8');
@@ -562,7 +752,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     // 返回文件路径
     res.json({
       html: `/output/${outputFilename}.html`,
-      image: `/api/image/${outputFilename}.svg`,  // 返回SVG而不是PNG
+      image: `/api/image/${outputFilename}.svg`,
       mindmap: `/output/${outputFilename}.json`
     });
   } catch (error) {
@@ -575,6 +765,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_VERSION) {
   app.listen(PORT, () => {
     console.log(`服务已启动在 http://localhost:${PORT}`);
+    console.log(`API文档: http://localhost:${PORT}/api-docs`);
   });
 }
 
