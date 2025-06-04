@@ -9,7 +9,7 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/index.js" },
     { "src": "/output/(.*)", "dest": "/api/index.js" },
-    { "src": "/(.*\\.(html|svg|json))", "dest": "/$1" },
+    { "src": "/(.*\\.html)", "dest": "/$1" },
     { "src": "/api-docs", "dest": "/public/api-docs.html" },
     { "src": "/(.*)", "dest": "/public/index.html" }
   ],

@@ -1,7 +1,7 @@
 {
   "name": "markmap-service",
   "version": "1.0.0",
-  "description": "将Markdown文本转换为思维导图的API服务，支持HTML、SVG和JSON格式",
+  "description": "将Markdown文本转换为HTML交互式思维导图的API服务",
   "main": "api/index.js",
   "scripts": {
     "dev": "nodemon src/index.js",
@@ -9,17 +9,14 @@
     "build": "mkdir -p dist && cp -r src public api package.json vercel.json dist/",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["markmap", "mindmap", "markdown", "api", "svg"],
+  "keywords": ["markmap", "mindmap", "markdown", "api"],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "markmap-common": "^0.14.2",
     "markmap-lib": "^0.14.4",
-    "markmap-view": "^0.14.4",
     "express": "^4.18.2",
     "multer": "^1.4.5-lts.1",
-    "cors": "^2.8.5",
-    "crypto": "^1.0.1"
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

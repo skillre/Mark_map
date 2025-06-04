@@ -1,14 +1,11 @@
 # Markdown思维导图生成器
 
-一个基于markmap-lib的在线思维导图生成服务，可以将Markdown文本转换为交互式思维导图、SVG图片和思维导图文件。
+一个基于markmap-lib的在线思维导图生成服务，可以将Markdown文本转换为交互式思维导图。
 
 ## 功能特点
 
 - 支持通过文本输入或文件上传方式生成思维导图
-- 生成三种格式的输出：
-  - 交互式HTML思维导图
-  - SVG图片
-  - 思维导图文件（JSON格式，兼容XMind）
+- 生成交互式HTML思维导图，支持缩放和平移
 - 标准化API接口，支持API密钥认证和速率限制
 - 简洁美观的用户界面
 - 优化的内存使用和错误处理
@@ -51,8 +48,6 @@ npm run dev
 
 ## API使用
 
-API文档访问地址：`/api-docs`
-
 ### API密钥认证
 
 所有API请求需要包含有效的API密钥。可以通过以下两种方式之一提供：
@@ -60,29 +55,18 @@ API文档访问地址：`/api-docs`
 1. 请求头: `X-API-Key: your-api-key`
 2. 查询参数: `?apiKey=your-api-key`
 
-### 标准API (v1)
+### 转换API
 
-#### 从文本生成思维导图
-
-```
-POST /api/v1/generate
-Content-Type: application/json
-X-API-Key: your-api-key
-
-{
-  "markdown": "# 标题\n## 子标题\n### 三级标题",
-  "title": "我的思维导图"
-}
-```
-
-#### 从文件生成思维导图
+#### 从文本或文件生成思维导图
 
 ```
-POST /api/v1/upload
+POST /api/convert
 Content-Type: multipart/form-data
 X-API-Key: your-api-key
 
-file: <上传的Markdown文件>
+markdown_text: 你的Markdown文本内容
+或
+markdown_file: <上传的Markdown文件>
 ```
 
 #### 响应格式
@@ -90,31 +74,9 @@ file: <上传的Markdown文件>
 ```json
 {
   "success": true,
-  "data": {
-    "id": "markmap-1234567890-abcd",
-    "title": "我的思维导图",
-    "created_at": "2023-01-01T12:00:00.000Z",
-    "links": {
-      "html": "/output/markmap-1234567890-abcd.html",
-      "svg": "/api/image/markmap-1234567890-abcd.svg",
-      "mindmap": "/output/markmap-1234567890-abcd.json"
-    },
-    "urls": {
-      "html_url": "https://your-domain.com/output/markmap-1234567890-abcd.html",
-      "svg_url": "https://your-domain.com/api/image/markmap-1234567890-abcd.svg",
-      "mindmap_url": "https://your-domain.com/output/markmap-1234567890-abcd.json"
-    }
-  }
+  "message": "思维导图生成成功",
+  "html_url": "/output/markmap-1234567890-abcd.html"
 }
-```
-
-### 兼容性API (旧版)
-
-为保持向后兼容，以下接口依然可用：
-
-```
-POST /api/generate
-POST /api/upload
 ```
 
 ## 环境变量配置

@@ -1,36 +1,18 @@
 const express = require('express');
 const cors = require('cors');
-const multer = require('multer');
-const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
-const util = require('util');
-const execPromise = util.promisify(exec);
-const crypto = require('crypto');
 const config = require('./config');
-const authMiddleware = require('./middlewares/auth');
 const apiRoutes = require('./routes/api');
 const fileUtils = require('./utils/fileUtils');
-
-// 引入markmap库，用于直接生成SVG
-const { Transformer } = require('markmap-lib');
-const { fillTemplate } = require('markmap-common');
-const transformer = new Transformer();
 
 const app = express();
 
 // 中间件配置
 app.use(cors());
-app.use(express.json({ limit: '1mb' })); // 限制JSON大小
-app.use(express.urlencoded({ extended: true, limit: '1mb' })); // 限制表单大小
+app.use(express.json({ limit: '1mb' })); 
+app.use(express.urlencoded({ extended: true, limit: '1mb' })); 
 app.use(express.static(config.publicDir));
 app.use('/output', express.static(config.outputDir));
-
-// API密钥验证中间件
-app.use(authMiddleware.validateApiKey);
-
-// 错误处理中间件
-app.use(authMiddleware.errorHandler);
 
 // 添加API路由
 app.use('/api', apiRoutes);

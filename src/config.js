@@ -17,6 +17,7 @@ const publicDir = path.join(__dirname, '../public');
 // 大小限制配置
 const MAX_MARKDOWN_SIZE = 500000; // 约500KB限制
 const MAX_NODES = 500; // 最大节点数
+const MAX_FILE_SIZE = 1024 * 1024; // 1MB上传文件大小限制
 
 module.exports = {
   isVercel,
@@ -28,5 +29,6 @@ module.exports = {
   outputDir,
   publicDir,
   MAX_MARKDOWN_SIZE,
-  MAX_NODES
+  MAX_NODES,
+  MAX_FILE_SIZE
 }; 

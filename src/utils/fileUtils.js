@@ -16,12 +16,11 @@ function ensureDirectoryExists(dirPath) {
 /**
  * 生成唯一文件名
  * @param {string} prefix 文件名前缀
- * @param {number} randomBytesLength 随机字节长度
  * @returns {string} 唯一文件名
  */
-function generateUniqueFilename(prefix = 'markmap', randomBytesLength = 4) {
+function generateUniqueFilename(prefix = 'markmap') {
   const timestamp = Date.now();
-  const uniqueId = crypto.randomBytes(randomBytesLength).toString('hex');
+  const uniqueId = crypto.randomBytes(4).toString('hex');
   return `${prefix}-${timestamp}-${uniqueId}`;
 }
 
@@ -36,36 +35,34 @@ function cleanupTempFiles(maxAgeDays = 1) {
     const cutoffTime = now - maxAgeDays * 24 * 60 * 60 * 1000;
 
     // 清理老旧的输出文件
-    if (fs.existsSync(config.outputDir)) {
-      fs.readdirSync(config.outputDir).forEach(file => {
-        const filePath = path.join(config.outputDir, file);
-        const stats = fs.statSync(filePath);
-        if (stats.mtimeMs < cutoffTime) {
-          try {
-            fs.unlinkSync(filePath);
-          } catch (e) {
-            // 忽略删除错误
-          }
-        }
-      });
-    }
-
+    cleanupDirectory(config.outputDir, cutoffTime);
+    
     // 清理上传目录
-    if (fs.existsSync(config.uploadDir)) {
-      fs.readdirSync(config.uploadDir).forEach(file => {
-        try {
-          const filePath = path.join(config.uploadDir, file);
-          const stats = fs.statSync(filePath);
-          if (stats.mtimeMs < cutoffTime) {
-            fs.unlinkSync(filePath);
-          }
-        } catch (e) {
-          // 忽略删除错误
-        }
-      });
-    }
+    cleanupDirectory(config.uploadDir, cutoffTime);
   } catch (err) {
     console.error('清理文件错误:', err);
+  }
+}
+
+/**
+ * 清理指定目录中过期的文件
+ * @param {string} directory 目录路径
+ * @param {number} cutoffTime 截止时间戳
+ */
+function cleanupDirectory(directory, cutoffTime) {
+  if (fs.existsSync(directory)) {
+    fs.readdirSync(directory).forEach(file => {
+      try {
+        const filePath = path.join(directory, file);
+        const stats = fs.statSync(filePath);
+        if (stats.mtimeMs < cutoffTime) {
+          fs.unlinkSync(filePath);
+          console.log(`已删除过期文件: ${filePath}`);
+        }
+      } catch (e) {
+        // 忽略删除错误
+      }
+    });
   }
 }
 
