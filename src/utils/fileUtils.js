@@ -14,6 +14,21 @@ function ensureDirectoryExists(dirPath) {
 }
 
 /**
+ * 强制重建目录（包含权限修复）
+ * @param {string} dirPath 目录路径
+ */
+function forceCreateDirectory(dirPath) {
+  try {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+    fs.mkdirSync(dirPath, { recursive: true, mode: 0o755 });
+    console.log(`重建目录成功: ${dirPath}`);
+  } catch (error) {
+    console.error(`目录重建失败: ${dirPath}`, error);
+    throw new Error(`无法创建目录: ${error.message}`);
+  }
+}
+
+/**
  * 生成唯一文件名
  * @param {string} prefix 文件名前缀
  * @returns {string} 唯一文件名
@@ -72,6 +87,7 @@ ensureDirectoryExists(config.outputDir);
 
 module.exports = {
   ensureDirectoryExists,
+  forceCreateDirectory,
   generateUniqueFilename,
   cleanupTempFiles
-}; 
+};
