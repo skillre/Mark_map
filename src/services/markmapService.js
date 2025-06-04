@@ -22,6 +22,11 @@ async function generateMarkmap(markdownContent, outputFilename) {
   }
   
   try {
+    // 确保输出目录存在
+    if (!fs.existsSync(config.outputDir)) {
+      fs.mkdirSync(config.outputDir, { recursive: true });
+    }
+    
     console.log('创建基本的思维导图HTML');
     
     // 使用最简单的在线方式生成思维导图，不尝试在服务端解析
@@ -111,6 +116,11 @@ async function generateSvgMarkmap(markdownContent, outputFilename) {
   const svgOutputPath = path.join(config.outputDir, `${outputFilename}.svg`);
   
   try {
+    // 确保输出目录存在
+    if (!fs.existsSync(config.outputDir)) {
+      fs.mkdirSync(config.outputDir, { recursive: true });
+    }
+    
     // 使用markmap-lib将Markdown转换为思维导图数据
     const { root, features } = transformer.transform(markdownContent);
     
@@ -163,6 +173,11 @@ async function generateSvgMarkmap(markdownContent, outputFilename) {
     console.log(`写入SVG文件: ${svgOutputPath}`);
     fs.writeFileSync(svgOutputPath, svgTemplate);
     
+    // 检查文件是否成功生成
+    if (!fs.existsSync(svgOutputPath)) {
+      throw new Error('未能创建SVG文件');
+    }
+    
     console.log('generateSvgMarkmap: SVG生成完成');
     return svgOutputPath;
   } catch (error) {
@@ -178,42 +193,75 @@ async function generateSvgMarkmap(markdownContent, outputFilename) {
  * @returns {Promise<string>} XMind 文件路径
  */
 async function generateXMindFile(markdownContent, outputFilename) {
+  console.log(`generateXMindFile: 开始生成思维导图文件: ${outputFilename}`);
   const xmindOutputPath = path.join(config.outputDir, `${outputFilename}.json`);
   
-  // 只处理标题行，减少内存占用
-  const lines = markdownContent
-    .split('\n')
-    .filter(line => line.trim().startsWith('#'))
-    .slice(0, config.MAX_NODES); // 限制最大节点数
-  
-  // 使用流式处理构造JSON
-  const rootNode = { title: "思维导图", children: [] };
-  const stack = [{ level: 0, node: rootNode }];
-  
-  for (const line of lines) {
-    // 计算标题级别（#的数量）
-    const match = line.match(/^(#+)\s+(.+)$/);
-    if (!match) continue;
-    
-    const level = match[1].length;
-    const title = match[2].trim().substring(0, 100); // 限制标题长度
-    const newNode = { title, children: [] };
-    
-    // 找到正确的父节点
-    while (stack.length > 1 && stack[stack.length - 1].level >= level) {
-      stack.pop();
+  try {
+    // 确保输出目录存在
+    if (!fs.existsSync(config.outputDir)) {
+      fs.mkdirSync(config.outputDir, { recursive: true });
     }
     
-    const parent = stack[stack.length - 1].node;
-    parent.children.push(newNode);
+    // 只处理标题行，减少内存占用
+    const lines = markdownContent
+      .split('\n')
+      .filter(line => line.trim().startsWith('#'))
+      .slice(0, config.MAX_NODES); // 限制最大节点数
     
-    stack.push({ level, node: newNode });
+    // 使用流式处理构造JSON
+    const rootNode = { title: "思维导图", children: [] };
+    const stack = [{ level: 0, node: rootNode }];
+    
+    for (const line of lines) {
+      // 计算标题级别（#的数量）
+      const match = line.match(/^(#+)\s+(.+)$/);
+      if (!match) continue;
+      
+      const level = match[1].length;
+      const title = match[2].trim().substring(0, 100); // 限制标题长度
+      const newNode = { title, children: [] };
+      
+      // 找到正确的父节点
+      while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+        stack.pop();
+      }
+      
+      const parent = stack[stack.length - 1].node;
+      parent.children.push(newNode);
+      
+      stack.push({ level, node: newNode });
+    }
+    
+    // 写入 JSON 文件（简化的 XMind 兼容格式）
+    console.log(`写入JSON文件: ${xmindOutputPath}`);
+    fs.writeFileSync(xmindOutputPath, JSON.stringify(rootNode, null, 2));
+    
+    // 检查文件是否成功生成
+    if (!fs.existsSync(xmindOutputPath)) {
+      throw new Error('未能创建JSON文件');
+    }
+    
+    // 获取文件状态信息
+    const stats = fs.statSync(xmindOutputPath);
+    console.log(`JSON文件创建成功，大小: ${stats.size} 字节, 路径: ${xmindOutputPath}`);
+    
+    // 在Vercel环境中，打印目录内容以辅助调试
+    if (config.isVercel) {
+      console.log('列出输出目录内容:');
+      const files = fs.readdirSync(config.outputDir);
+      files.forEach(file => {
+        const filePath = path.join(config.outputDir, file);
+        const fileStats = fs.statSync(filePath);
+        console.log(`- ${file} (${fileStats.size} 字节)`);
+      });
+    }
+    
+    console.log('generateXMindFile: JSON生成完成');
+    return xmindOutputPath;
+  } catch (error) {
+    console.error('生成JSON思维导图文件失败详细日志:', error);
+    throw new Error(`生成思维导图文件失败: ${error.message}`);
   }
-  
-  // 写入 JSON 文件（简化的 XMind 兼容格式）
-  fs.writeFileSync(xmindOutputPath, JSON.stringify(rootNode));
-  
-  return xmindOutputPath;
 }
 
 /**

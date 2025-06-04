@@ -29,6 +29,7 @@ router.get('/file/:filename', async (req, res) => {
   try {
     // 获取文件名
     const filename = req.params.filename;
+    console.log(`文件下载请求: ${filename}`);
     
     // 安全检查，防止路径遍历攻击
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
@@ -40,9 +41,60 @@ router.get('/file/:filename', async (req, res) => {
     
     // 构建完整的文件路径
     const filePath = path.join(config.outputDir, filename);
+    console.log(`尝试访问文件: ${filePath}`);
     
     // 检查文件是否存在
     if (!fs.existsSync(filePath)) {
+      console.error(`文件不存在: ${filePath}`);
+      
+      // 列出目录内容以便调试
+      console.log('列出输出目录内容:');
+      if (fs.existsSync(config.outputDir)) {
+        const files = fs.readdirSync(config.outputDir);
+        if (files.length === 0) {
+          console.log('- 目录为空');
+        } else {
+          files.forEach(file => {
+            const fp = path.join(config.outputDir, file);
+            const stat = fs.statSync(fp);
+            console.log(`- ${file} (${stat.size} 字节)`);
+          });
+        }
+      } else {
+        console.log(`- 输出目录不存在: ${config.outputDir}`);
+      }
+      
+      // 检查是否有类似名称的文件
+      if (fs.existsSync(config.outputDir)) {
+        const files = fs.readdirSync(config.outputDir);
+        const similarFiles = files.filter(file => 
+          file.includes(filename.replace('.json', '')) || 
+          filename.includes(file.replace('.json', ''))
+        );
+        
+        if (similarFiles.length > 0) {
+          console.log('找到类似名称的文件:');
+          similarFiles.forEach(file => console.log(`- ${file}`));
+          
+          // 如果找到了类似的JSON文件，尝试使用它
+          const jsonFile = similarFiles.find(file => file.endsWith('.json'));
+          if (jsonFile) {
+            console.log(`尝试使用替代文件: ${jsonFile}`);
+            const altFilePath = path.join(config.outputDir, jsonFile);
+            
+            // 读取文件内容
+            const fileContent = fs.readFileSync(altFilePath, 'utf8');
+            
+            // 设置响应头，指示这是一个JSON文件下载
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', `attachment; filename="${jsonFile}"`);
+            
+            // 发送文件内容
+            return res.send(fileContent);
+          }
+        }
+      }
+      
       return res.status(404).json({
         success: false,
         error: '文件不存在',
@@ -51,7 +103,9 @@ router.get('/file/:filename', async (req, res) => {
     }
     
     // 读取文件内容
+    console.log(`读取文件内容: ${filePath}`);
     const fileContent = fs.readFileSync(filePath, 'utf8');
+    console.log(`文件大小: ${fileContent.length} 字节`);
     
     // 设置响应头，指示这是一个JSON文件下载
     res.setHeader('Content-Type', 'application/json');
@@ -59,6 +113,7 @@ router.get('/file/:filename', async (req, res) => {
     
     // 发送文件内容
     res.send(fileContent);
+    console.log(`文件 ${filename} 下载成功`);
   } catch (error) {
     console.error('文件下载错误:', error);
     res.status(500).json({
