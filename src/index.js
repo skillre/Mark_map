@@ -7,6 +7,18 @@ const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
+// 引入markmap库
+let Transformer;
+let Markmap;
+try {
+  // 导入markmap库 - 用于直接在Node.js中生成HTML
+  const markmapLib = require('markmap-lib');
+  Transformer = markmapLib.Transformer;
+} catch (e) {
+  console.error('导入markmap-lib失败:', e);
+  Transformer = null;
+}
+
 // 配置 puppeteer 以在 Vercel 上运行
 let puppeteer;
 try {
@@ -66,7 +78,6 @@ app.use((err, req, res, next) => {
  * @returns {Promise<string>} HTML 文件路径
  */
 async function generateMarkmap(markdownContent, outputFilename) {
-  const mdFilePath = path.join(uploadDir, `${outputFilename}.md`);
   const htmlOutputPath = path.join(outputDir, `${outputFilename}.html`);
   
   // 限制过大的文件，防止内存溢出
@@ -74,33 +85,64 @@ async function generateMarkmap(markdownContent, outputFilename) {
     throw new Error('Markdown文件过大，请减小文件大小');
   }
   
-  // 写入 markdown 文件
-  fs.writeFileSync(mdFilePath, markdownContent);
-  
   try {
     // 确保生成输出目录存在
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
     
-    // 使用 markmap-cli 最新版本0.18.11生成HTML
-    // 添加参数 --offline 以便在Vercel环境中能离线使用
-    const command = `npx markmap-cli ${mdFilePath} -o ${htmlOutputPath} --offline --no-open`;
-    
-    try {
-      await execPromise(command);
-    } catch (cmdError) {
-      console.error('Markmap命令执行错误:', cmdError);
+    // 直接使用markmap库生成HTML，不再使用CLI命令
+    let transformer;
+    let markmapHtml;
+
+    if (Transformer) {
+      // 使用markmap-lib生成思维导图数据
+      transformer = new Transformer();
+      const { root, features } = transformer.transform(markdownContent);
       
-      // 如果命令失败，尝试使用备选方案：生成一个最小的html文件
-      const minimalHtml = `
+      // 生成HTML
+      markmapHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown思维导图</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.14.4"></script>
+  <style>
+    body { margin: 0; padding: 0; height: 100vh; }
+    #mindmap { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <svg id="mindmap"></svg>
+  <script>
+    // 思维导图数据 - 由markmap-lib生成
+    const markmapData = ${JSON.stringify(root)};
+    
+    // 在页面加载完成后渲染
+    document.addEventListener('DOMContentLoaded', function() {
+      const { Markmap } = window.markmap;
+      const svg = document.getElementById('mindmap');
+      const mm = Markmap.create(svg, {
+        autoFit: true,
+        zoom: true
+      }, markmapData);
+    });
+  </script>
+</body>
+</html>`;
+    } else {
+      // 如果markmap-lib导入失败，使用备用方案
+      markmapHtml = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Markmap</title>
-  <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.18.11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.14.4"></script>
   <style>
     html, body, svg { height: 100%; width: 100%; margin: 0; padding: 0; }
   </style>
@@ -112,26 +154,24 @@ async function generateMarkmap(markdownContent, outputFilename) {
     document.addEventListener('DOMContentLoaded', () => {
       const markdown = ${JSON.stringify(markdownContent)};
       
-      // 使用markmap-autoloader的正确API
+      // 使用markmap-autoloader的API
       window.markmap.autoLoader.load().then(() => {
         // 创建Markmap实例
-        const { Markmap, loadContent, loadCSS, loadJS } = window.markmap;
-        
-        // 解析并渲染markdown
+        const { Markmap } = window.markmap;
         const transformer = new window.markmap.Transformer();
-        const { root, features } = transformer.transform(markdown);
+        const { root } = transformer.transform(markdown);
         
         // 初始化mindmap
-        const mm = Markmap.create('#mindmap', null, root);
+        const mm = Markmap.create('#mindmap', { autoFit: true }, root);
       });
     });
   </script>
 </body>
 </html>`;
-      
-      fs.writeFileSync(htmlOutputPath, minimalHtml);
-      console.log('使用备选方案生成HTML');
     }
+    
+    // 写入HTML文件
+    fs.writeFileSync(htmlOutputPath, markmapHtml);
     
     // 检查文件是否成功生成
     if (!fs.existsSync(htmlOutputPath)) {
@@ -141,14 +181,7 @@ async function generateMarkmap(markdownContent, outputFilename) {
     return htmlOutputPath;
   } catch (error) {
     console.error('生成HTML失败:', error);
-    throw new Error('生成思维导图HTML失败');
-  } finally {
-    // 清理临时markdown文件
-    try {
-      fs.unlinkSync(mdFilePath);
-    } catch (e) {
-      // 忽略清理错误
-    }
+    throw new Error('生成思维导图HTML失败: ' + error.message);
   }
 }
 
