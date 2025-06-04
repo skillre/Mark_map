@@ -13,9 +13,5 @@
     { "src": "/api-docs", "dest": "/public/api-docs.html" },
     { "src": "/(.*)", "dest": "/public/index.html" }
   ],
-  "env": {
-    "NODE_ENV": "production",
-    "API_KEYS": "default-dev-key,vercel-prod-key"
-  },
   "buildCommand": "npm run build"
 } 
