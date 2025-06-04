@@ -337,64 +337,144 @@ function cleanupTempFiles() {
 // 每小时运行一次清理
 setInterval(cleanupTempFiles, 60 * 60 * 1000);
 
-// 新增API端点 - 从HTML生成图片
+// 新增API端点 - 提供SVG图片
 app.get('/api/image/:filename', async (req, res) => {
   try {
+    // 详细记录请求信息
     console.log(`图片API被调用: ${req.params.filename}`);
-    // 移除所有可能的文件扩展名（.png, .svg等）
-    const filename = req.params.filename.replace(/\.(png|svg)$/, '');
-    console.log(`处理后的文件名: ${filename}`);
+    console.log(`请求完整URL: ${req.originalUrl}`);
+    console.log(`请求头: ${JSON.stringify(req.headers)}`);
+    
+    // 移除所有可能的文件扩展名
+    const rawFilename = req.params.filename;
+    const filename = rawFilename.replace(/\.(png|svg)$/, '');
+    
+    console.log(`原始文件名: ${rawFilename}, 处理后的文件名: ${filename}`);
     
     // 添加安全检查，防止路径遍历攻击
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       return res.status(400).json({ error: '无效的文件名' });
     }
     
-    const htmlPath = path.join(outputDir, `${filename}.html`);
-    console.log(`查找HTML文件: ${htmlPath}`);
+    // 尝试多种可能的文件路径
+    const possiblePaths = [
+      path.join(outputDir, `${filename}.svg`),          // 优先尝试SVG
+      path.join(outputDir, `${rawFilename}`),           // 原始文件名
+      path.join(outputDir, `${filename.split('-')[0]}-${filename.split('-')[1]}.svg`) // 移除后缀后尝试
+    ];
     
-    // 检查HTML文件是否存在
-    if (!fs.existsSync(htmlPath)) {
-      console.error(`HTML文件不存在: ${htmlPath}`);
-      return res.status(404).json({ error: '找不到HTML文件', path: htmlPath });
+    console.log('尝试查找以下文件:');
+    for (const p of possiblePaths) {
+      console.log(` - ${p} (存在: ${fs.existsSync(p)})`);
     }
-
-    // 检查对应的markdown文件是否存在
-    const markdownPath = path.join(uploadDir, `${filename}.md`);
-    if (fs.existsSync(markdownPath)) {
-      try {
-        // 如果有markdown源文件，尝试直接生成SVG
-        const markdown = fs.readFileSync(markdownPath, 'utf-8');
-        await generateSvgMarkmap(markdown, filename);
-      } catch (svgError) {
-        console.error('从Markdown生成SVG失败:', svgError);
+    
+    // 尝试找到已存在的SVG文件
+    let svgPath = null;
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        svgPath = p;
+        console.log(`找到有效的SVG文件: ${svgPath}`);
+        break;
       }
     }
-
-    // 尝试使用已生成的SVG文件
-    const svgPath = path.join(outputDir, `${filename}.svg`);
-    if (fs.existsSync(svgPath)) {
-      console.log(`返回已生成的SVG文件: ${svgPath}`);
+    
+    // 如果找到了SVG文件，直接返回
+    if (svgPath) {
       return res.type('image/svg+xml').sendFile(svgPath);
     }
-
-    // 没有SVG文件，使用占位图
+    
+    // 检查是否有对应的markdown源文件，尝试直接生成SVG
+    const markdownPaths = [
+      path.join(uploadDir, `${filename}.md`),
+      path.join(uploadDir, `${rawFilename}.md`),
+      path.join(uploadDir, `${filename.split('-')[0]}-${filename.split('-')[1]}.md`)
+    ];
+    
+    console.log('尝试查找markdown源文件:');
+    for (const p of markdownPaths) {
+      console.log(` - ${p} (存在: ${fs.existsSync(p)})`);
+    }
+    
+    let markdownContent = null;
+    for (const p of markdownPaths) {
+      if (fs.existsSync(p)) {
+        try {
+          markdownContent = fs.readFileSync(p, 'utf-8');
+          console.log(`找到并读取markdown文件: ${p}`);
+          break;
+        } catch (err) {
+          console.error(`读取文件 ${p} 失败:`, err);
+        }
+      }
+    }
+    
+    // 如果找到了markdown内容，尝试生成SVG
+    if (markdownContent) {
+      try {
+        const svgOutputPath = await generateSvgMarkmap(markdownContent, filename);
+        console.log(`成功生成SVG: ${svgOutputPath}`);
+        if (fs.existsSync(svgOutputPath)) {
+          return res.type('image/svg+xml').sendFile(svgOutputPath);
+        }
+      } catch (svgError) {
+        console.error('生成SVG失败:', svgError);
+      }
+    }
+    
+    // 列出目录内容，帮助调试
+    console.log('输出目录内容:');
+    if (fs.existsSync(outputDir)) {
+      fs.readdirSync(outputDir).forEach(file => {
+        console.log(` - ${file}`);
+      });
+    } else {
+      console.log('输出目录不存在');
+    }
+    
+    console.log('上传目录内容:');
+    if (fs.existsSync(uploadDir)) {
+      fs.readdirSync(uploadDir).forEach(file => {
+        console.log(` - ${file}`);
+      });
+    } else {
+      console.log('上传目录不存在');
+    }
+    
+    // 如果所有尝试都失败，返回默认SVG
     const placeholderSvgPath = path.join(__dirname, '../public/placeholder.svg');
     if (fs.existsSync(placeholderSvgPath)) {
-      console.log(`使用SVG占位图: ${placeholderSvgPath}`);
+      console.log(`使用占位图: ${placeholderSvgPath}`);
       return res.type('image/svg+xml').sendFile(placeholderSvgPath);
     }
     
-    // 如果没有可用的图片，重定向到HTML版本
-    console.log('没有可用图片，返回HTML重定向');
-    return res.status(307).json({ 
-      error: '思维导图图片不可用',
-      redirect: `/output/${filename}.html`,
-      message: '请使用HTML版本查看'
-    });
+    // 生成内联SVG响应
+    console.log('生成内联SVG响应');
+    const inlineSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600">
+      <rect width="100%" height="100%" fill="#f8f9fa"/>
+      <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="24" fill="#666" text-anchor="middle">
+        思维导图图片不可用
+      </text>
+      <text x="50%" y="50%" dy="30" font-family="Arial, sans-serif" font-size="18" fill="#999" text-anchor="middle">
+        请使用HTML版本查看
+      </text>
+    </svg>`;
+    
+    res.type('image/svg+xml').send(inlineSvg);
+    
   } catch (error) {
     console.error('图片生成失败详细信息:', error);
-    res.status(500).json({ error: '生成图片失败', details: error.message });
+    // 发送内联SVG响应，即使在错误情况下也能显示
+    const errorSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600">
+      <rect width="100%" height="100%" fill="#fee"/>
+      <text x="50%" y="45%" font-family="Arial, sans-serif" font-size="24" fill="#c00" text-anchor="middle">
+        图片生成失败
+      </text>
+      <text x="50%" y="55%" font-family="Arial, sans-serif" font-size="18" fill="#666" text-anchor="middle">
+        ${error.message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+      </text>
+    </svg>`;
+    
+    res.type('image/svg+xml').send(errorSvg);
   }
 });
 
