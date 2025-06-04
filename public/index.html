@@ -198,37 +198,50 @@
     .info {
       color: #3498db;
       padding: 10px;
-      background-color: #eaf2f8;
+      background-color: #e8f4f8;
       border-radius: 4px;
-      margin-top: 10px;
-      margin-bottom: 10px;
-      font-size: 14px;
+      margin: 10px 0;
     }
     
     .example-btn {
+      background-color: #f1f1f1;
+      border: none;
+      padding: 8px 12px;
       margin-top: 10px;
-      background-color: transparent;
-      color: #3498db;
-      border: 1px solid #3498db;
-      padding: 8px 16px;
-      font-size: 14px;
       border-radius: 4px;
       cursor: pointer;
+      font-size: 14px;
       transition: all 0.3s;
     }
     
     .example-btn:hover {
-      background-color: #f0f8ff;
+      background-color: #e0e0e0;
     }
     
-    @media (max-width: 768px) {
-      .container {
-        padding: 15px;
-      }
-      
-      .result-links {
-        flex-direction: column;
-      }
+    .settings {
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #f9f9f9;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    
+    .settings h3 {
+      margin-bottom: 10px;
+      font-size: 18px;
+      color: #2c3e50;
+    }
+    
+    .settings .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .settings input[type="text"] {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
     }
   </style>
 </head>
@@ -236,10 +249,13 @@
   <div class="container">
     <h1>Markdown思维导图生成器</h1>
     
-    <div class="header-nav" style="text-align: center; margin-bottom: 20px;">
-      <a href="/api-docs" class="api-docs-link" style="display: inline-block; margin: 0 10px; color: #3498db; text-decoration: none; padding: 5px 10px; border: 1px solid #3498db; border-radius: 4px;">
-        API文档
-      </a>
+    <div class="settings">
+      <h3>API设置</h3>
+      <div class="form-group">
+        <label for="api-key">API密钥：</label>
+        <input type="text" id="api-key" placeholder="输入API密钥" value="dev-key">
+        <div class="info">API密钥用于认证，默认值为"dev-key"</div>
+      </div>
     </div>
     
     <div class="tabs">
@@ -311,6 +327,20 @@
         });
       });
       
+      // 获取API密钥
+      function getApiKey() {
+        return document.getElementById('api-key').value.trim();
+      }
+      
+      // 添加API密钥到请求头
+      function getApiHeaders() {
+        const headers = {
+          'Content-Type': 'application/json',
+          'X-API-Key': getApiKey()
+        };
+        return headers;
+      }
+      
       // 加载示例
       const exampleMarkdown = `# Markdown思维导图示例
 ## 使用方法
@@ -355,9 +385,7 @@
         try {
           const response = await fetch('/api/generate', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
+            headers: getApiHeaders(),
             body: JSON.stringify({ markdown }),
             timeout: 25000 // 25秒超时
           });
@@ -365,7 +393,7 @@
           const result = await response.json();
           
           if (!response.ok) {
-            const errorMessage = result.details || result.error || '未知错误';
+            const errorMessage = result.details || result.error || result.message || '未知错误';
             console.error('生成失败:', result);
             throw new Error(errorMessage);
           }
@@ -404,13 +432,16 @@
         try {
           const response = await fetch('/api/upload', {
             method: 'POST',
+            headers: {
+              'X-API-Key': getApiKey()
+            },
             body: formData,
             timeout: 25000 // 25秒超时
           });
           
           if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || error.details || '上传失败');
+            throw new Error(error.error || error.message || error.details || '上传失败');
           }
           
           const result = await response.json();
@@ -429,9 +460,20 @@
         const mindmapLink = document.getElementById('mindmap-link');
         const previewFrame = document.getElementById('preview-frame');
         
-        htmlLink.href = result.html;
-        imageLink.href = result.image;
-        mindmapLink.href = result.mindmap;
+        // 处理新的API响应格式
+        if (result.success && result.data) {
+          // 新格式响应
+          htmlLink.href = result.data.links.html;
+          imageLink.href = result.data.links.svg;
+          mindmapLink.href = result.data.links.mindmap;
+          previewFrame.src = result.data.links.html;
+        } else {
+          // 旧格式响应
+          htmlLink.href = result.html;
+          imageLink.href = result.image;
+          mindmapLink.href = result.mindmap;
+          previewFrame.src = result.html;
+        }
         
         // 设置图片链接的点击事件处理
         imageLink.onclick = async function(event) {
@@ -441,7 +483,12 @@
             
             try {
               console.log('正在请求图片：', this.href);
-              const response = await fetch(this.href);
+              // 添加API密钥到图片请求
+              const apiKey = getApiKey();
+              const separator = this.href.includes('?') ? '&' : '?';
+              const url = `${this.href}${separator}apiKey=${apiKey}`;
+              
+              const response = await fetch(url);
               const contentType = response.headers.get('content-type');
               console.log('响应内容类型：', contentType);
               
@@ -483,11 +530,11 @@
               } else if (contentType && contentType.includes('image/svg+xml')) {
                 // 是SVG图片，在新窗口打开
                 console.log('显示SVG图片');
-                window.open(this.href, '_blank');
+                window.open(url, '_blank');
               } else if (contentType && contentType.includes('image/')) {
                 // 是正常图片数据，直接打开
                 console.log('显示图片');
-                window.open(this.href, '_blank');
+                window.open(url, '_blank');
               } else {
                 // 未知响应类型
                 console.error('未知响应类型：', contentType);
@@ -503,8 +550,6 @@
             }
           }
         };
-        
-        previewFrame.src = result.html;
         
         resultElement.style.display = 'block';
       }
