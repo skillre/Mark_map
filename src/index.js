@@ -13,16 +13,6 @@ const { Transformer } = require('markmap-lib');
 const { fillTemplate } = require('markmap-common');
 const transformer = new Transformer();
 
-// 配置 puppeteer 以在 Vercel 上运行
-let puppeteer;
-try {
-  // 尝试导入针对 Vercel 环境优化的 puppeteer
-  puppeteer = require('puppeteer-core');
-} catch (e) {
-  // 本地开发环境使用标准 puppeteer
-  puppeteer = require('puppeteer');
-}
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -357,7 +347,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// API文档页面
+// 确保API文档路由正确响应
 app.get('/api-docs', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/api-docs.html'));
 });
