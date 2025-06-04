@@ -108,8 +108,23 @@ async function generateMarkmap(markdownContent, outputFilename) {
 <body>
   <svg id="mindmap"></svg>
   <script>
-    const markdown = ${JSON.stringify(markdownContent)};
-    window.markmap.autoLoader.renderString(markdown, document.getElementById('mindmap'));
+    // 在页面加载完成后执行
+    document.addEventListener('DOMContentLoaded', () => {
+      const markdown = ${JSON.stringify(markdownContent)};
+      
+      // 使用markmap-autoloader的正确API
+      window.markmap.autoLoader.load().then(() => {
+        // 创建Markmap实例
+        const { Markmap, loadContent, loadCSS, loadJS } = window.markmap;
+        
+        // 解析并渲染markdown
+        const transformer = new window.markmap.Transformer();
+        const { root, features } = transformer.transform(markdown);
+        
+        // 初始化mindmap
+        const mm = Markmap.create('#mindmap', null, root);
+      });
+    });
   </script>
 </body>
 </html>`;
