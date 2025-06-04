@@ -426,6 +426,47 @@
         htmlLink.href = result.html;
         imageLink.href = result.image;
         mindmapLink.href = result.mindmap;
+        
+        // 设置图片链接的点击事件处理
+        imageLink.onclick = async function(event) {
+          // 如果是image链接并且路径以/api/开头，可能需要特殊处理
+          if (this.href.includes('/api/image/')) {
+            event.preventDefault(); // 阻止默认行为
+            
+            try {
+              const response = await fetch(this.href);
+              const contentType = response.headers.get('content-type');
+              
+              if (contentType && contentType.includes('application/json')) {
+                // 这是一个JSON响应，可能是错误或重定向
+                const data = await response.json();
+                
+                if (data.redirect) {
+                  // 有重定向信息，跳转到HTML版本
+                  window.open(data.redirect, '_blank');
+                  
+                  if (data.message) {
+                    alert(data.message);
+                  }
+                } else if (data.error) {
+                  // 显示错误信息
+                  alert(data.error + (data.details ? ': ' + data.details : ''));
+                }
+              } else if (contentType && contentType.includes('image/svg+xml')) {
+                // 是SVG图片，在新窗口打开并添加提示
+                window.open(this.href, '_blank');
+                alert('PNG图片生成不可用，显示占位图。请使用HTML版本获取完整体验。');
+              } else {
+                // 是图片数据，正常打开
+                window.open(this.href, '_blank');
+              }
+            } catch (error) {
+              console.error('获取图片时出错:', error);
+              alert('获取图片时出错: ' + error.message);
+            }
+          }
+        };
+        
         previewFrame.src = result.html;
         
         resultElement.style.display = 'block';

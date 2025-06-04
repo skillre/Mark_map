@@ -355,43 +355,54 @@ app.get('/api/image/:filename', async (req, res) => {
       console.error(`HTML文件不存在: ${htmlPath}`);
       return res.status(404).json({ error: '找不到HTML文件', path: htmlPath });
     }
-    
-    // 设置超时
-    const timeout = setTimeout(() => {
-      console.error('图片生成超时');
-      res.status(408).json({ error: '生成图片超时' });
-    }, 9000); // 9秒超时，Vercel函数最长10秒
-    
+
     try {
-      // 生成图片
+      // 尝试使用SVG作为占位图
+      const placeholderSvgPath = path.join(__dirname, '../public/placeholder.svg');
       const imageOutputPath = path.join(outputDir, `${filename}.png`);
       
-      // 检查图片是否已经存在
+      // 如果图片文件已存在，直接返回
       if (fs.existsSync(imageOutputPath)) {
-        console.log(`使用已存在的图片: ${imageOutputPath}`);
-        clearTimeout(timeout);
-        // 图片已存在，直接发送
+        console.log(`返回PNG图片文件: ${imageOutputPath}`);
         return res.type('image/png').sendFile(imageOutputPath);
       }
       
-      console.log('开始生成图片');
-      // 生成图片
-      await generateImage(htmlPath, filename);
-      
-      clearTimeout(timeout);
-      
-      // 发送图片
-      if (fs.existsSync(imageOutputPath)) {
-        console.log('图片生成成功');
-        return res.type('image/png').sendFile(imageOutputPath);
-      } else {
-        console.error(`图片文件不存在: ${imageOutputPath}`);
-        throw new Error(`生成的图片文件未找到: ${imageOutputPath}`);
+      // 尝试生成图片，但不阻止流程继续
+      console.log('尝试生成PNG图片');
+      try {
+        await generateImage(htmlPath, filename);
+        
+        // 图片生成成功，返回
+        if (fs.existsSync(imageOutputPath)) {
+          console.log('PNG图片生成成功');
+          return res.type('image/png').sendFile(imageOutputPath);
+        }
+      } catch (imageError) {
+        console.error('生成PNG图片失败:', imageError);
       }
+      
+      // 如果有SVG占位图，返回它
+      if (fs.existsSync(placeholderSvgPath)) {
+        console.log('使用SVG占位图');
+        return res.type('image/svg+xml').sendFile(placeholderSvgPath);
+      }
+      
+      // 没有图片可用，告诉客户端查看HTML版本
+      console.log('没有可用图片，返回HTML重定向');
+      return res.status(307).json({ 
+        error: '图片生成不可用',
+        redirect: `/output/${filename}.html`,
+        message: '图片生成功能在此环境不可用，请使用HTML版本'
+      });
+      
     } catch (error) {
-      clearTimeout(timeout);
-      console.error('图片生成过程错误:', error);
-      throw new Error(`生成图片过程出错: ${error.message}`);
+      console.error('图片处理错误:', error);
+      return res.status(500).json({ 
+        error: '图片处理错误', 
+        details: error.message,
+        redirect: `/output/${filename}.html`,
+        message: '请使用HTML版本查看思维导图'
+      });
     }
   } catch (error) {
     console.error('图片生成失败详细信息:', error);
