@@ -422,8 +422,19 @@
           showLoading(false);
           
           if (data.success) {
+            // 获取HTML URL并处理路径
+            let htmlUrl = data.html_url;
+            
+            // 从URL中提取文件名
+            const filename = htmlUrl.split('/').pop();
+            
+            // 在Vercel环境中使用不同的URL格式
+            if (window.location.hostname.includes('vercel.app')) {
+              htmlUrl = `/output/${filename}`;
+            }
+            
             // 显示结果
-            resultFrame.src = data.html_url;
+            resultFrame.src = htmlUrl;
             results.style.display = 'block';
             
             // 滚动到结果区域

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
+const fileUtils = require('../utils/fileUtils');
 
 /**
  * 从 Markdown 生成思维导图 HTML
@@ -10,13 +11,14 @@ const config = require('../config');
  */
 async function generateMarkmap(markdownContent, outputFilename) {
   console.log('generateMarkmap: 开始生成思维导图HTML');
-  const htmlOutputPath = path.join(config.outputDir, `${outputFilename}.html`);
+  
+  // 确保文件名是安全的（移除可能导致路径问题的字符）
+  const safeName = outputFilename.replace(/[^\w-]/g, '');
+  const htmlOutputPath = path.join(config.outputDir, `${safeName}.html`);
   
   try {
     // 确保输出目录存在
-    if (!fs.existsSync(config.outputDir)) {
-      fs.mkdirSync(config.outputDir, { recursive: true });
-    }
+    fileUtils.ensureDirectoryExists(config.outputDir);
     
     // 使用CDN资源，但合并为单一CDN以减少请求数
     const markmapHtml = `
@@ -112,7 +114,7 @@ async function generateMarkmap(markdownContent, outputFilename) {
     
     // 写入HTML文件
     console.log(`写入HTML文件: ${htmlOutputPath}`);
-    fs.writeFileSync(htmlOutputPath, markmapHtml);
+    fs.writeFileSync(htmlOutputPath, markmapHtml, 'utf-8');
     
     console.log('generateMarkmap: HTML生成完成');
     return htmlOutputPath;

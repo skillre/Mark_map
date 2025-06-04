@@ -14,6 +14,14 @@ const uploadDir = path.join(baseDir, 'uploads');
 const outputDir = path.join(baseDir, 'output');
 const publicDir = path.join(__dirname, '../public');
 
+// 确保在Vercel环境中创建输出目录
+if (isVercel) {
+  const fs = require('fs');
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+}
+
 // 大小限制配置
 const MAX_MARKDOWN_SIZE = 500000; // 约500KB限制
 const MAX_NODES = 500; // 最大节点数
