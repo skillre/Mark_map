@@ -169,6 +169,16 @@ async function generateImage(htmlPath, outputFilename) {
   console.log(`generateImage: 开始从HTML生成图片: ${htmlPath}`);
   const imageOutputPath = path.join(outputDir, `${outputFilename}.png`);
   
+  // 检查是否在Vercel环境中或禁用了Puppeteer
+  const disablePuppeteer = process.env.DISABLE_PUPPETEER === 'true';
+  const isVercelEnv = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION;
+
+  // 如果在Vercel环境中或显式禁用了Puppeteer，直接跳过图片生成
+  if (isVercelEnv || disablePuppeteer) {
+    console.log('检测到Vercel环境或禁用了Puppeteer，跳过PNG生成，使用替代方案');
+    return null;
+  }
+  
   // 获取 Chrome 可执行文件路径和浏览器选项
   let options = {
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-extensions', '--disable-gpu'],
@@ -178,73 +188,46 @@ async function generateImage(htmlPath, outputFilename) {
   
   try {
     console.log('配置浏览器环境');
-    if (process.env.AWS_LAMBDA_FUNCTION_VERSION) {
-      // Vercel环境
-      console.log('检测到Vercel/AWS Lambda环境');
-      try {
-        const chromium = require('chrome-aws-lambda');
-        options = {
-          ...options,
-          executablePath: await chromium.executablePath,
-          args: [...chromium.args, ...options.args],
-        };
-        console.log('已加载chrome-aws-lambda');
-      } catch (chromiumError) {
-        console.error('加载chrome-aws-lambda失败:', chromiumError);
-        throw new Error(`无法加载chrome-aws-lambda: ${chromiumError.message}`);
-      }
-    }
-
-    // 启动浏览器，设置较小的上下文
-    console.log('启动浏览器');
-    const browser = await puppeteer.launch(options)
-      .catch(launchError => {
-        console.error('启动浏览器失败:', launchError);
-        throw new Error(`启动浏览器失败: ${launchError.message}`);
-      });
+    let browser = null;
 
     try {
+      // 尝试启动浏览器
+      console.log('启动浏览器');
+      browser = await puppeteer.launch(options);
+      
       console.log('创建新页面');
-      // 简化页面操作，减少内存使用
-      const page = await browser.newPage()
-        .catch(pageError => {
-          console.error('创建页面失败:', pageError);
-          throw new Error(`创建页面失败: ${pageError.message}`);
-        });
+      const page = await browser.newPage();
       
       console.log(`导航至HTML页面: ${htmlPath}`);
-      await page.goto(`file://${htmlPath}`, { waitUntil: 'domcontentloaded' })
-        .catch(gotoError => {
-          console.error('导航到HTML失败:', gotoError);
-          throw new Error(`导航到HTML失败: ${gotoError.message}`);
-        });
+      await page.goto(`file://${htmlPath}`, { waitUntil: 'domcontentloaded' });
       
       console.log('等待页面加载完成');
       // 给页面一些时间来渲染
       await page.waitForTimeout(1000);
       
       console.log('开始截图');
-      // 使用固定尺寸，避免复杂计算
       await page.screenshot({ 
         path: imageOutputPath,
         fullPage: true,
         omitBackground: true
-      }).catch(screenshotError => {
-        console.error('截图失败:', screenshotError);
-        throw new Error(`截图失败: ${screenshotError.message}`);
       });
       
       console.log(`图片已保存至: ${imageOutputPath}`);
       return imageOutputPath;
+    } catch (browserError) {
+      console.error('浏览器操作失败:', browserError);
+      throw new Error(`浏览器操作失败: ${browserError.message}`);
     } finally {
-      console.log('关闭浏览器');
-      await browser.close().catch(closeError => {
-        console.warn('关闭浏览器出错:', closeError);
-      });
+      if (browser) {
+        console.log('关闭浏览器');
+        await browser.close().catch(closeError => {
+          console.warn('关闭浏览器出错:', closeError);
+        });
+      }
     }
   } catch (error) {
     console.error('生成图片过程中出错:', error);
-    throw new Error(`生成图片失败: ${error.message}`);
+    throw new Error(`生成图片过程中出错: ${error.message}`);
   }
 }
 
@@ -356,9 +339,27 @@ app.get('/api/image/:filename', async (req, res) => {
       return res.status(404).json({ error: '找不到HTML文件', path: htmlPath });
     }
 
-    try {
+    // 在Vercel环境中，直接返回SVG占位图或重定向到HTML
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION || process.env.DISABLE_PUPPETEER === 'true') {
+      console.log('检测到受限环境，使用替代方案');
       // 尝试使用SVG作为占位图
       const placeholderSvgPath = path.join(__dirname, '../public/placeholder.svg');
+      
+      if (fs.existsSync(placeholderSvgPath)) {
+        console.log('使用SVG占位图');
+        return res.type('image/svg+xml').sendFile(placeholderSvgPath);
+      } else {
+        // 没有SVG占位图，重定向到HTML
+        console.log('没有可用图片，返回HTML重定向');
+        return res.status(307).json({ 
+          error: '思维导图图片不可用',
+          redirect: `/output/${filename}.html`,
+          message: '请使用HTML版本查看'
+        });
+      }
+    }
+
+    try {
       const imageOutputPath = path.join(outputDir, `${filename}.png`);
       
       // 如果图片文件已存在，直接返回
@@ -367,21 +368,18 @@ app.get('/api/image/:filename', async (req, res) => {
         return res.type('image/png').sendFile(imageOutputPath);
       }
       
-      // 尝试生成图片，但不阻止流程继续
+      // 尝试生成图片
       console.log('尝试生成PNG图片');
-      try {
-        await generateImage(htmlPath, filename);
-        
-        // 图片生成成功，返回
-        if (fs.existsSync(imageOutputPath)) {
-          console.log('PNG图片生成成功');
-          return res.type('image/png').sendFile(imageOutputPath);
-        }
-      } catch (imageError) {
-        console.error('生成PNG图片失败:', imageError);
+      const generatedImagePath = await generateImage(htmlPath, filename);
+      
+      // 图片生成成功，返回
+      if (generatedImagePath && fs.existsSync(generatedImagePath)) {
+        console.log('PNG图片生成成功');
+        return res.type('image/png').sendFile(generatedImagePath);
       }
       
-      // 如果有SVG占位图，返回它
+      // 图片生成失败，尝试使用SVG占位图
+      const placeholderSvgPath = path.join(__dirname, '../public/placeholder.svg');
       if (fs.existsSync(placeholderSvgPath)) {
         console.log('使用SVG占位图');
         return res.type('image/svg+xml').sendFile(placeholderSvgPath);
@@ -390,9 +388,9 @@ app.get('/api/image/:filename', async (req, res) => {
       // 没有图片可用，告诉客户端查看HTML版本
       console.log('没有可用图片，返回HTML重定向');
       return res.status(307).json({ 
-        error: '图片生成不可用',
+        error: '思维导图图片不可用',
         redirect: `/output/${filename}.html`,
-        message: '图片生成功能在此环境不可用，请使用HTML版本'
+        message: '请使用HTML版本查看'
       });
       
     } catch (error) {

@@ -446,23 +446,45 @@
                   window.open(data.redirect, '_blank');
                   
                   if (data.message) {
-                    alert(data.message);
+                    // 使用更友好的提示方式
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.position = 'fixed';
+                    errorDiv.style.top = '20px';
+                    errorDiv.style.left = '50%';
+                    errorDiv.style.transform = 'translateX(-50%)';
+                    errorDiv.style.padding = '15px';
+                    errorDiv.style.backgroundColor = '#f8d7da';
+                    errorDiv.style.color = '#721c24';
+                    errorDiv.style.borderRadius = '4px';
+                    errorDiv.style.zIndex = '1000';
+                    errorDiv.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                    errorDiv.textContent = '思维导图图片不可用 - ' + data.message;
+                    
+                    document.body.appendChild(errorDiv);
+                    setTimeout(() => {
+                      errorDiv.remove();
+                    }, 5000);
                   }
                 } else if (data.error) {
                   // 显示错误信息
-                  alert(data.error + (data.details ? ': ' + data.details : ''));
+                  showError(data.error + (data.details ? ': ' + data.details : ''));
                 }
               } else if (contentType && contentType.includes('image/svg+xml')) {
                 // 是SVG图片，在新窗口打开并添加提示
                 window.open(this.href, '_blank');
-                alert('PNG图片生成不可用，显示占位图。请使用HTML版本获取完整体验。');
-              } else {
-                // 是图片数据，正常打开
+                showError('思维导图图片不可用 - 请使用HTML版本查看');
+              } else if (contentType && contentType.includes('image/')) {
+                // 是正常图片数据，直接打开
                 window.open(this.href, '_blank');
+              } else {
+                // 未知响应类型
+                showError('无法获取图片，请使用HTML版本查看思维导图');
               }
             } catch (error) {
               console.error('获取图片时出错:', error);
-              alert('获取图片时出错: ' + error.message);
+              showError('获取图片时出错: ' + error.message);
+              // 自动打开HTML版本
+              window.open(htmlLink.href, '_blank');
             }
           }
         };
