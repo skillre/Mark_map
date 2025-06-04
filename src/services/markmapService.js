@@ -25,6 +25,7 @@ async function generateMarkmap(markdownContent, outputFilename) {
 <!DOCTYPE html>
 <html>
 <head>
+  <script src="https://cdn.jsdelivr.net/combine/npm/d3@7.8.5,npm/markmap-view@0.15.3,npm/markmap-lib@0.15.3/dist/browser/index.min.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>思维导图</title>
@@ -59,7 +60,7 @@ async function generateMarkmap(markdownContent, outputFilename) {
     
     try {
       // 原始Markdown内容
-      const markdown = ${JSON.stringify(markdownContent)};
+      const markdown = ${JSON.stringify(markdownContent).replace(/</g, '\\u003c')};
       
       if (!window.markmap || !window.markmap.Transformer) {
         throw new Error('思维导图库加载失败');
@@ -114,6 +115,7 @@ async function generateMarkmap(markdownContent, outputFilename) {
     
     // 写入HTML文件
     console.log(`写入HTML文件: ${htmlOutputPath}`);
+    fileUtils.forceCreateDirectory(config.outputDir);
     fs.writeFileSync(htmlOutputPath, markmapHtml, 'utf-8');
     
     console.log('generateMarkmap: HTML生成完成');
@@ -126,4 +128,4 @@ async function generateMarkmap(markdownContent, outputFilename) {
 
 module.exports = {
   generateMarkmap
-}; 
+};
