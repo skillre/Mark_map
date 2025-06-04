@@ -23,6 +23,53 @@ const upload = multer({
 });
 
 /**
+ * GET /api/file/:filename - 获取JSON思维导图文件
+ */
+router.get('/file/:filename', async (req, res) => {
+  try {
+    // 获取文件名
+    const filename = req.params.filename;
+    
+    // 安全检查，防止路径遍历攻击
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({
+        success: false,
+        error: '无效的文件名'
+      });
+    }
+    
+    // 构建完整的文件路径
+    const filePath = path.join(config.outputDir, filename);
+    
+    // 检查文件是否存在
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        error: '文件不存在',
+        message: `找不到文件: ${filename}`
+      });
+    }
+    
+    // 读取文件内容
+    const fileContent = fs.readFileSync(filePath, 'utf8');
+    
+    // 设置响应头，指示这是一个JSON文件下载
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // 发送文件内容
+    res.send(fileContent);
+  } catch (error) {
+    console.error('文件下载错误:', error);
+    res.status(500).json({
+      success: false,
+      error: '文件下载失败',
+      message: error.message
+    });
+  }
+});
+
+/**
  * GET /api/image/:filename - 获取思维导图SVG图像
  */
 router.get('/image/:filename', async (req, res) => {
@@ -131,6 +178,10 @@ router.post('/v1/generate', async (req, res) => {
     const uniqueFilename = fileUtils.generateUniqueFilename();
     console.log(`API处理: 从文本生成思维导图，文件名: ${uniqueFilename}`);
     
+    // 保存markdown源文件，方便后续生成SVG
+    const markdownPath = path.join(config.uploadDir, `${uniqueFilename}.md`);
+    fs.writeFileSync(markdownPath, markdown);
+    
     // 并行生成所有输出格式
     const [htmlPath, svgPath, jsonPath] = await Promise.all([
       markmapService.generateMarkmap(markdown, uniqueFilename),
@@ -140,10 +191,6 @@ router.post('/v1/generate', async (req, res) => {
       console.error('生成思维导图时出错:', err);
       throw err;
     });
-    
-    // 保存markdown源文件，方便后续生成SVG
-    const markdownPath = path.join(config.uploadDir, `${uniqueFilename}.md`);
-    fs.writeFileSync(markdownPath, markdown);
     
     // 构建基础URL
     const baseUrl = req.protocol + '://' + req.get('host');
@@ -158,12 +205,12 @@ router.post('/v1/generate', async (req, res) => {
         links: {
           html: `/output/${path.basename(htmlPath)}`,
           svg: `/api/image/${uniqueFilename}.svg`,
-          mindmap: `/output/${path.basename(jsonPath)}`
+          mindmap: `/api/file/${path.basename(jsonPath)}`
         },
         urls: {
           html_url: `${baseUrl}/output/${uniqueFilename}.html`,
           svg_url: `${baseUrl}/api/image/${uniqueFilename}.svg`,
-          mindmap_url: `${baseUrl}/output/${uniqueFilename}.json`
+          mindmap_url: `${baseUrl}/api/file/${uniqueFilename}.json`
         }
       }
     });
@@ -240,12 +287,12 @@ router.post('/v1/upload', upload.single('file'), async (req, res) => {
         links: {
           html: `/output/${path.basename(htmlPath)}`,
           svg: `/api/image/${uniqueFilename}.svg`,
-          mindmap: `/output/${path.basename(jsonPath)}`
+          mindmap: `/api/file/${path.basename(jsonPath)}`
         },
         urls: {
           html_url: `${baseUrl}/output/${uniqueFilename}.html`,
           svg_url: `${baseUrl}/api/image/${uniqueFilename}.svg`,
-          mindmap_url: `${baseUrl}/output/${uniqueFilename}.json`
+          mindmap_url: `${baseUrl}/api/file/${uniqueFilename}.json`
         }
       }
     });
@@ -305,7 +352,7 @@ router.post('/generate', async (req, res) => {
     res.json({
       html: `/output/${path.basename(htmlPath)}`,
       image: `/api/image/${uniqueFilename}.svg`,
-      mindmap: `/output/${path.basename(jsonPath)}`
+      mindmap: `/api/file/${path.basename(jsonPath)}`
     });
     
     // 异步清理老文件
@@ -361,7 +408,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     res.json({
       html: `/output/${path.basename(htmlPath)}`,
       image: `/api/image/${uniqueFilename}.svg`,
-      mindmap: `/output/${path.basename(jsonPath)}`
+      mindmap: `/api/file/${path.basename(jsonPath)}`
     });
     
     // 清理上传的文件

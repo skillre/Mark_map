@@ -475,6 +475,15 @@
           previewFrame.src = result.html;
         }
         
+        // 设置思维导图下载链接的点击事件处理，添加API密钥
+        mindmapLink.onclick = function(event) {
+          if (this.href.includes('/api/file/')) {
+            const apiKey = getApiKey();
+            const separator = this.href.includes('?') ? '&' : '?';
+            this.href = `${this.href}${separator}apiKey=${apiKey}`;
+          }
+        };
+        
         // 设置图片链接的点击事件处理
         imageLink.onclick = async function(event) {
           // 如果是image链接并且路径以/api/开头，可能需要特殊处理
