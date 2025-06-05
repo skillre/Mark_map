@@ -32,8 +32,17 @@ setInterval(() => {
   console.log(`内存使用: ${JSON.stringify(used)}`);
 }, 5000);
 
-// 添加基本错误处理中间件
+// 添加详细错误日志记录
 app.use((err, req, res, next) => {
-  console.error('服务器错误:', err.stack);
-  res.status(500).send('服务器内部错误');
+  console.error('--- 服务器崩溃报告 ---');
+  console.error(`时间: ${new Date().toISOString()}`);
+  console.error(`路径: ${req.path}`);
+  console.error(`方法: ${req.method}`);
+  console.error(`参数: ${JSON.stringify(req.body)}`);
+  console.error(`错误堆栈:\n${err.stack}`);
+  console.error('------------------------');
+  res.status(500).json({ 
+    error: '服务器内部错误',
+    referenceId: 'hnd1::cnkw4-1749122600864-636d66538ac8' 
+  });
 }); 
