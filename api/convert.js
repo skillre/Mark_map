@@ -32,13 +32,34 @@ module.exports = async (req, res) => {
     }
 
     // 使用markmap-lib转换Markdown为思维导图数据
-    const transformer = new Transformer();
+    const transformer = new Transformer({
+      // 确保列表结构被正确处理
+      bulletListMarker: '-',  // 支持 - 作为无序列表标记
+      listItemIndent: 'tab',  // 使用制表符缩进列表项
+      // 启用更多Markdown特性
+      breaks: true,           // 支持换行
+      gfm: true,              // 启用GitHub风格Markdown
+      // 增强列表支持
+      pedantic: false,        // 不使用严格模式，更宽松地解析列表
+      commonmark: true        // 使用CommonMark规范解析Markdown
+    });
+    
     const { root, features } = transformer.transform(markdown);
 
     // 返回转换后的数据
-    return res.status(200).json({ root, features });
+    return res.status(200).json({ 
+      success: true,
+      data: { 
+        root, 
+        features 
+      }
+    });
   } catch (error) {
     console.error('转换出错:', error);
-    return res.status(500).json({ error: '服务器内部错误', message: error.message });
+    return res.status(500).json({ 
+      success: false, 
+      error: '服务器内部错误', 
+      message: error.message 
+    });
   }
 };
