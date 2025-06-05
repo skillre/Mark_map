@@ -10,6 +10,10 @@
       "use": "@vercel/static"
     },
     {
+      "src": "js/lib/**/*.js",
+      "use": "@vercel/static"
+    },
+    {
       "src": "api/*.js",
       "use": "@vercel/node"
     }
@@ -22,6 +26,10 @@
     {
       "src": "/js/(.*)",
       "dest": "/js/$1"
+    },
+    {
+      "src": "/js/lib/(.*)",
+      "dest": "/js/lib/$1"
     },
     {
       "handle": "filesystem"

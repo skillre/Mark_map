@@ -184,23 +184,33 @@
         }
     </script>
     
-    <!-- markmap-lib库 -->
+    <!-- markmap-lib库 - 必须先加载 -->
     <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.14.4/dist/browser/index.min.js"></script>
     <script>
         // 如果主要CDN加载失败，尝试备用CDN
         if (typeof window.markmapLib === 'undefined') {
             console.warn('从主CDN加载markmap-lib失败，尝试备用CDN');
             document.write('<script src="https://unpkg.com/markmap-lib@0.14.4/dist/browser/index.min.js"><\/script>');
+            // 添加第三个备用源
+            if (typeof window.markmapLib === 'undefined') {
+                console.warn('备用CDN也失败，尝试第三个源');
+                document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/markmap-lib/0.14.4/browser/index.min.js"><\/script>');
+            }
         }
     </script>
     
-    <!-- markmap-view库 -->
+    <!-- markmap-view库 - 依赖于markmap-lib -->
     <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.14.4"></script>
     <script>
         // 如果主要CDN加载失败，尝试备用CDN
         if (typeof window.markmap === 'undefined') {
             console.warn('从主CDN加载markmap-view失败，尝试备用CDN');
             document.write('<script src="https://unpkg.com/markmap-view@0.14.4"><\/script>');
+            // 添加第三个备用源
+            if (typeof window.markmap === 'undefined') {
+                console.warn('备用CDN也失败，尝试第三个源');
+                document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/markmap-view/0.14.4/index.min.js"><\/script>');
+            }
         }
     </script>
     
@@ -211,6 +221,11 @@
         if (typeof window.markmapToolbar === 'undefined') {
             console.warn('从主CDN加载markmap-toolbar失败，尝试备用CDN');
             document.write('<script src="https://unpkg.com/markmap-toolbar@0.14.4/dist/index.umd.min.js"><\/script>');
+            // 添加第三个备用源
+            if (typeof window.markmapToolbar === 'undefined') {
+                console.warn('备用CDN也失败，尝试第三个源');
+                document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/markmap-toolbar/0.14.4/index.umd.min.js"><\/script>');
+            }
         }
     </script>
     
@@ -244,7 +259,7 @@
                 
                 // 动态加载本地备份库
                 var script = document.createElement('script');
-                script.src = '/js/lib/markmap-bundle.js';
+                script.src = './js/lib/markmap-bundle.js';
                 script.onload = function() {
                     console.log('本地备份库加载完成，重新初始化页面...');
                     // 重新初始化页面
