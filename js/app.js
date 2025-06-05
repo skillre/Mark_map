@@ -176,7 +176,14 @@ function initializeApp() {
                 
                 console.log('创建Transformer实例并转换Markdown...');
                 // 转换Markdown为思维导图数据
-                const transformer = new Transformer();
+                const transformer = new Transformer({
+                    // 确保列表结构被正确处理
+                    bulletListMarker: '-',
+                    listItemIndent: 'tab',
+                    // 启用更多Markdown特性
+                    breaks: true,
+                    gfm: true
+                });
                 const { root, features } = transformer.transform(markdown);
                 
                 // 加载必要的CSS和JS

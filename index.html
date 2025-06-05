@@ -6,23 +6,54 @@
     <title>Markdown思维导图生成器</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/markmap-toolbar@0.14.4/dist/style.css">
     <style>
+        :root {
+            --primary-color: #4285F4;
+            --secondary-color: #34A853;
+            --accent-color: #FBBC05;
+            --danger-color: #EA4335;
+            --light-bg: #f8f9fa;
+            --dark-text: #202124;
+            --light-text: #ffffff;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
             margin: 0;
             padding: 0;
             display: flex;
             flex-direction: column;
             height: 100vh;
-            background-color: #f5f5f5;
+            background-color: var(--light-bg);
+            color: var(--dark-text);
+            line-height: 1.6;
         }
+        
         .header {
-            background-color: #4CAF50;
-            color: white;
-            padding: 1rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--light-text);
+            padding: 1.2rem;
             text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--box-shadow);
             position: relative;
+            z-index: 10;
         }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
         .api-link {
             position: absolute;
             right: 20px;
@@ -30,80 +61,187 @@
             transform: translateY(-50%);
             background-color: rgba(255, 255, 255, 0.2);
             padding: 8px 16px;
-            border-radius: 4px;
-            color: white;
+            border-radius: var(--border-radius);
+            color: var(--light-text);
             text-decoration: none;
             font-size: 14px;
-            transition: background-color 0.3s;
+            font-weight: 500;
+            transition: var(--transition);
+            backdrop-filter: blur(5px);
         }
+        
         .api-link:hover {
             background-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-50%) scale(1.05);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
+        
         .container {
             display: flex;
             flex: 1;
             overflow: hidden;
+            box-shadow: var(--box-shadow);
+            margin: 1rem;
+            border-radius: var(--border-radius);
+            background-color: white;
         }
+        
         .editor-container {
             flex: 1;
             display: flex;
             flex-direction: column;
-            padding: 1rem;
-            border-right: 1px solid #ddd;
+            padding: 1.2rem;
+            border-right: 1px solid rgba(0, 0, 0, 0.1);
             background-color: white;
         }
+        
         .mindmap-container {
             flex: 1;
             position: relative;
             overflow: hidden;
+            background-color: #fafafa;
+            border-radius: 0 var(--border-radius) var(--border-radius) 0;
         }
+        
         #editor {
             width: 100%;
             height: 100%;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px;
-            font-family: monospace;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: var(--border-radius);
+            padding: 15px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
             resize: none;
             flex: 1;
+            transition: var(--transition);
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
         }
+        
+        #editor:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+        }
+        
         .controls {
             margin-top: 1rem;
             display: flex;
-            gap: 10px;
+            gap: 12px;
         }
+        
         button {
-            padding: 8px 16px;
-            background-color: #4CAF50;
+            padding: 10px 18px;
+            background-color: var(--primary-color);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: var(--border-radius);
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: var(--transition);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
+        
         button:hover {
-            background-color: #45a049;
+            background-color: #3367d6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
         }
+        
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        
         .svg-container {
             width: 100%;
             height: 100%;
+            transition: var(--transition);
         }
+        
         .loading {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             display: none;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 15px 25px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            font-weight: 500;
+            color: var(--primary-color);
+            animation: pulse 1.5s infinite;
         }
+        
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        
         .examples {
-            margin-bottom: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
         }
+        
         .example-btn {
-            margin-right: 5px;
-            background-color: #2196F3;
+            background-color: var(--secondary-color);
+            padding: 8px 14px;
+            font-size: 13px;
         }
+        
         .example-btn:hover {
-            background-color: #0b7dda;
+            background-color: #2d9247;
+        }
+        
+        #generate-btn {
+            background-color: var(--primary-color);
+            flex-grow: 2;
+        }
+        
+        #clear-btn {
+            background-color: var(--danger-color);
+        }
+        
+        #save-btn {
+            background-color: var(--accent-color);
+            color: var(--dark-text);
+        }
+        
+        #save-btn:hover {
+            background-color: #e0a800;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                margin: 0.5rem;
+            }
+            
+            .editor-container {
+                border-right: none;
+                border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+                padding: 1rem;
+            }
+            
+            .mindmap-container {
+                border-radius: 0 0 var(--border-radius) var(--border-radius);
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .api-link {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
         }
     </style>
 </head>
