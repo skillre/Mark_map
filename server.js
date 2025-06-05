@@ -4,26 +4,36 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
-const puppeteer = require('puppeteer');
+const chromium = require('chrome-aws-lambda');
+const puppeteer = require('puppeteer-core');
 
 const app = express();
 const port = process.env.PORT || 3000;
+const isVercel = process.env.VERCEL === '1';
+
+// 在Vercel环境中使用/tmp目录
+const baseDir = isVercel ? '/tmp' : __dirname;
+const tempDir = path.join(baseDir, 'temp');
+const outputDir = path.join(baseDir, 'output');
 
 // 指定静态文件目录
-app.use(express.static('public'));
-app.use(express.static('output'));
+if (!isVercel) {
+  app.use(express.static('public'));
+  app.use(express.static('output'));
+}
 app.use(express.json());
 
-// 创建必要的目录
-const tempDir = path.join(__dirname, 'temp');
-const outputDir = path.join(__dirname, 'output');
+// 确保目录存在
+try {
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+  }
 
-if (!fs.existsSync(tempDir)) {
-  fs.mkdirSync(tempDir);
-}
-
-if (!fs.existsSync(outputDir)) {
-  fs.mkdirSync(outputDir);
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+} catch (err) {
+  console.error('创建目录失败:', err);
 }
 
 // 文件上传配置
@@ -38,6 +48,38 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage: storage });
+
+// 获取适用于当前环境的浏览器实例
+async function getBrowser() {
+  if (isVercel) {
+    // Vercel Serverless环境
+    return await puppeteer.launch({
+      args: [...chromium.args, '--disable-dev-shm-usage'],
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath,
+      headless: true,
+      ignoreHTTPSErrors: true,
+    });
+  } else {
+    // 本地开发环境
+    let puppeteerLocal;
+    try {
+      // 尝试加载本地安装的puppeteer
+      puppeteerLocal = require('puppeteer');
+    } catch (error) {
+      console.error('无法加载puppeteer，将使用puppeteer-core');
+      return await puppeteer.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+    }
+    
+    return await puppeteerLocal.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+  }
+}
 
 // 从文本生成思维导图HTML
 app.post('/api/generate', async (req, res) => {
@@ -66,13 +108,21 @@ app.post('/api/generate', async (req, res) => {
       });
     });
 
+    // 读取生成的HTML内容
+    const htmlContent = fs.readFileSync(htmlFilePath, 'utf8');
+
     // 使用puppeteer生成PNG图片
-    const browser = await puppeteer.launch({ 
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    const browser = await getBrowser();
     const page = await browser.newPage();
-    await page.goto(`file://${htmlFilePath}`, { waitUntil: 'networkidle0' });
+    
+    if (isVercel) {
+      // 在Vercel环境中，直接传递HTML内容
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    } else {
+      // 本地环境，使用文件URL
+      await page.goto(`file://${htmlFilePath}`, { waitUntil: 'networkidle0' });
+    }
+    
     await page.setViewport({ width: 1200, height: 800, deviceScaleFactor: 2 });
     
     // 等待markmap渲染完成
@@ -96,16 +146,29 @@ app.post('/api/generate', async (req, res) => {
     });
     
     // 截图
-    await page.screenshot({ path: pngFilePath });
+    const screenshot = await page.screenshot({ encoding: 'base64' });
     await browser.close();
 
-    res.json({
-      success: true,
-      files: {
-        html: `/api/file/${id}.html`,
-        png: `/api/file/${id}.png`,
-      }
-    });
+    // Vercel环境中，将数据作为内存对象返回
+    if (isVercel) {
+      res.json({
+        success: true,
+        files: {
+          html: `data:text/html;base64,${Buffer.from(htmlContent).toString('base64')}`,
+          png: `data:image/png;base64,${screenshot}`
+        }
+      });
+    } else {
+      // 本地环境，保存文件并返回URL
+      fs.writeFileSync(pngFilePath, Buffer.from(screenshot, 'base64'));
+      res.json({
+        success: true,
+        files: {
+          html: `/api/file/${id}.html`,
+          png: `/api/file/${id}.png`,
+        }
+      });
+    }
   } catch (error) {
     console.error('生成思维导图错误:', error);
     res.status(500).json({ error: '生成思维导图失败', details: error.message });
@@ -135,13 +198,21 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       });
     });
 
+    // 读取生成的HTML内容
+    const htmlContent = fs.readFileSync(htmlFilePath, 'utf8');
+
     // 使用puppeteer生成PNG图片
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    const browser = await getBrowser();
     const page = await browser.newPage();
-    await page.goto(`file://${htmlFilePath}`, { waitUntil: 'networkidle0' });
+    
+    if (isVercel) {
+      // 在Vercel环境中，直接传递HTML内容
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    } else {
+      // 本地环境，使用文件URL
+      await page.goto(`file://${htmlFilePath}`, { waitUntil: 'networkidle0' });
+    }
+    
     await page.setViewport({ width: 1200, height: 800, deviceScaleFactor: 2 });
     
     // 等待markmap渲染完成
@@ -165,16 +236,29 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     });
     
     // 截图
-    await page.screenshot({ path: pngFilePath });
+    const screenshot = await page.screenshot({ encoding: 'base64' });
     await browser.close();
 
-    res.json({
-      success: true,
-      files: {
-        html: `/api/file/${id}.html`,
-        png: `/api/file/${id}.png`,
-      }
-    });
+    // Vercel环境中，将数据作为内存对象返回
+    if (isVercel) {
+      res.json({
+        success: true,
+        files: {
+          html: `data:text/html;base64,${Buffer.from(htmlContent).toString('base64')}`,
+          png: `data:image/png;base64,${screenshot}`
+        }
+      });
+    } else {
+      // 本地环境，保存文件并返回URL
+      fs.writeFileSync(pngFilePath, Buffer.from(screenshot, 'base64'));
+      res.json({
+        success: true,
+        files: {
+          html: `/api/file/${id}.html`,
+          png: `/api/file/${id}.png`,
+        }
+      });
+    }
   } catch (error) {
     console.error('生成思维导图错误:', error);
     res.status(500).json({ error: '生成思维导图失败', details: error.message });
@@ -193,18 +277,24 @@ app.get('/api/file/:filename', (req, res) => {
   }
 });
 
-// 处理对Next.js应用的请求
-const next = require('next');
-const dev = process.env.NODE_ENV !== 'production';
-const nextApp = next({ dev });
-const handle = nextApp.getRequestHandler();
+// 如果在Vercel环境中，使用API路由
+if (isVercel) {
+  console.log('运行在Vercel环境中');
+  module.exports = app;
+} else {
+  // 本地开发环境，处理对Next.js应用的请求
+  const next = require('next');
+  const dev = process.env.NODE_ENV !== 'production';
+  const nextApp = next({ dev });
+  const handle = nextApp.getRequestHandler();
 
-nextApp.prepare().then(() => {
-  app.all('*', (req, res) => {
-    return handle(req, res);
-  });
+  nextApp.prepare().then(() => {
+    app.all('*', (req, res) => {
+      return handle(req, res);
+    });
 
-  app.listen(port, () => {
-    console.log(`服务启动成功，端口: ${port}`);
+    app.listen(port, () => {
+      console.log(`服务启动成功，端口: ${port}`);
+    });
   });
-}); 
+} 

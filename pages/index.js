@@ -96,6 +96,11 @@ export default function Home() {
     };
     reader.readAsText(file);
   };
+  
+  // 判断URL是否为数据URL
+  const isDataUrl = (url) => {
+    return typeof url === 'string' && url.startsWith('data:');
+  };
 
   return (
     <div className={styles.container}>
@@ -194,40 +199,74 @@ export default function Home() {
                   <div className={styles.card}>
                     <h2>思维导图预览</h2>
                     <div className={styles.iframeContainer}>
-                      <iframe 
-                        src={result.files.html} 
-                        className={styles.iframe}
-                        title="思维导图预览"
-                      />
+                      {isDataUrl(result.files.html) ? (
+                        <iframe
+                          src={result.files.html}
+                          className={styles.iframe}
+                          title="思维导图预览"
+                          sandbox="allow-scripts allow-same-origin"
+                        />
+                      ) : (
+                        <iframe 
+                          src={result.files.html} 
+                          className={styles.iframe}
+                          title="思维导图预览"
+                        />
+                      )}
                     </div>
                   </div>
                   
                   <div className={styles.card}>
                     <h2>下载选项</h2>
                     <div className={styles.downloadOptions}>
-                      <a 
-                        href={result.files.html} 
-                        className={styles.downloadButton}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        查看HTML版本
-                      </a>
-                      <a 
-                        href={result.files.png} 
-                        className={styles.downloadButton}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        查看PNG图片
-                      </a>
-                      <a 
-                        href={result.files.png} 
-                        className={styles.downloadButton}
-                        download="mindmap.png"
-                      >
-                        下载PNG图片
-                      </a>
+                      {isDataUrl(result.files.html) ? (
+                        <a 
+                          href={result.files.html}
+                          className={styles.downloadButton}
+                          target="_blank"
+                          rel="noreferrer"
+                          download="mindmap.html"
+                        >
+                          下载HTML版本
+                        </a>
+                      ) : (
+                        <a 
+                          href={result.files.html} 
+                          className={styles.downloadButton}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          查看HTML版本
+                        </a>
+                      )}
+                      
+                      {isDataUrl(result.files.png) ? (
+                        <a 
+                          href={result.files.png}
+                          className={styles.downloadButton}
+                          download="mindmap.png"
+                        >
+                          下载PNG图片
+                        </a>
+                      ) : (
+                        <>
+                          <a 
+                            href={result.files.png} 
+                            className={styles.downloadButton}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            查看PNG图片
+                          </a>
+                          <a 
+                            href={result.files.png} 
+                            className={styles.downloadButton}
+                            download="mindmap.png"
+                          >
+                            下载PNG图片
+                          </a>
+                        </>
+                      )}
                     </div>
                   </div>
                 </>
