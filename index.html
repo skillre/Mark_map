@@ -78,7 +78,8 @@
         
         .container {
             display: flex;
-            flex: 1;
+            flex-direction: column;
+            height: calc(100vh - 60px);
             overflow: hidden;
             box-shadow: var(--box-shadow);
             margin: 1rem;
@@ -175,6 +176,8 @@
             font-weight: 500;
             color: var(--primary-color);
             animation: pulse 1.5s infinite;
+            z-index: 10;
+            backdrop-filter: blur(2px);
         }
         
         @keyframes pulse {
@@ -242,6 +245,20 @@
                 padding: 6px 12px;
                 font-size: 12px;
             }
+        }
+        
+        /* 新增错误提示样式 */
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #ffebee;
+            color: #b71c1c;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            max-width: 80%;
         }
     </style>
 </head>
@@ -335,10 +352,17 @@
     <script>
         // 检查所有必要的库是否已加载
         function checkLibrariesLoaded() {
-            return typeof d3 !== 'undefined' && 
-                   typeof window.markmap !== 'undefined' && 
-                   typeof window.markmapLib !== 'undefined' && 
-                   typeof window.markmapToolbar !== 'undefined';
+            const libs = {
+                d3: typeof d3 !== 'undefined',
+                markmap: typeof window.markmap !== 'undefined',
+                markmapLib: typeof window.markmapLib !== 'undefined',
+                markmapToolbar: typeof window.markmapToolbar !== 'undefined'
+            };
+            
+            // 记录加载状态
+            console.log('库加载状态:', libs);
+            
+            return Object.values(libs).every(Boolean);
         }
         
         // 5秒后检查库是否加载，如果没有则提示用户刷新
@@ -378,6 +402,102 @@
                 console.log('markmap库加载成功');
             }
         });
+    </script>
+
+    <script>
+        // 在initApp函数中添加
+        function initApp() {
+            // ... 其他代码 ...
+            
+            // 修复渲染函数
+            function renderMindmap(root) {
+                try {
+                    mindmapContainer.innerHTML = '';
+                    const svg = d3.select('#mindmap').append('svg');
+                    
+                    // 使用更可靠的渲染方式
+                    Markmap.create(svg.node(), {
+                        autoFit: true,
+                        maxWidth: 300,
+                        nodeMinHeight: 24,  // 确保节点有足够高度
+                        spacingVertical: 10, // 增加垂直间距
+                        spacingHorizontal: 120, // 增加水平间距
+                        paddingX: 8,        // 增加X轴内边距
+                        color: () => d3.schemeCategory10[Math.floor(Math.random() * 10)] // 随机颜色
+                    }, root);
+                    
+                    // 添加工具栏
+                    const toolbar = new markmapToolbar.Toolbar();
+                    toolbar.attach(markmapInstance);
+                    
+                    loadingIndicator.style.display = 'none';
+                } catch (error) {
+                    console.error('渲染错误:', error);
+                    loadingIndicator.style.display = 'none';
+                    mindmapContainer.innerHTML = `<div class="error">渲染失败: ${error.message}</div>`;
+                }
+            }
+        }
+    </script>
+
+    <script>
+        // 增强库加载检查
+        function checkLibrariesLoaded() {
+            const libs = {
+                d3: typeof d3 !== 'undefined',
+                markmap: typeof window.markmap !== 'undefined',
+                markmapLib: typeof window.markmapLib !== 'undefined',
+                markmapToolbar: typeof window.markmapToolbar !== 'undefined'
+            };
+            
+            // 记录加载状态
+            console.log('库加载状态:', libs);
+            
+            return Object.values(libs).every(Boolean);
+        }
+        
+        // 增强错误处理
+        function handleRenderError(error) {
+            console.error('渲染错误:', error);
+            const errorContainer = document.createElement('div');
+            errorContainer.className = 'error';
+            errorContainer.innerHTML = `
+                <h3>渲染失败</h3>
+                <p>${error.message}</p>
+                <button onclick="location.reload()">重新加载</button>
+            `;
+            mindmapContainer.innerHTML = '';
+            mindmapContainer.appendChild(errorContainer);
+        }
+    </script>
+
+    <script>
+        // 增强CDN加载
+        function loadScript(src, callback) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error(`加载失败: ${src}`));
+                document.head.appendChild(script);
+            });
+        }
+
+        // 按顺序加载库
+        async function loadLibraries() {
+            try {
+                await loadScript('https://cdn.jsdelivr.net/npm/d3@6.7.0');
+                await loadScript('https://cdn.jsdelivr.net/npm/markmap-lib@0.14.4/dist/browser/index.min.js');
+                await loadScript('https://cdn.jsdelivr.net/npm/markmap-view@0.14.4');
+                await loadScript('https://cdn.jsdelivr.net/npm/markmap-toolbar@0.14.4/dist/index.umd.min.js');
+                initApp();
+            } catch (error) {
+                handleRenderError(error);
+            }
+        }
+        
+        // 启动加载
+        window.addEventListener('DOMContentLoaded', loadLibraries);
     </script>
 
     <script src="./js/app.js"></script>

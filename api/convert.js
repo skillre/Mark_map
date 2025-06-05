@@ -33,18 +33,25 @@ module.exports = async (req, res) => {
 
     // 使用markmap-lib转换Markdown为思维导图数据
     const transformer = new Transformer({
-      // 确保列表结构被正确处理
-      bulletListMarker: '-',  // 支持 - 作为无序列表标记
-      listItemIndent: 'tab',  // 使用制表符缩进列表项
-      // 启用更多Markdown特性
-      breaks: true,           // 支持换行
-      gfm: true,              // 启用GitHub风格Markdown
-      // 增强列表支持
-      pedantic: false,        // 不使用严格模式，更宽松地解析列表
-      commonmark: true        // 使用CommonMark规范解析Markdown
+      bulletListMarker: '-',
+      listItemIndent: 'one',  // 修复：使用更可靠的缩进方式
+      breaks: true,
+      gfm: true,
+      pedantic: false,
+      commonmark: true,
+      // 新增：增强列表支持
+      listItemIndent: 'mixed',  // 支持混合缩进
+      listItemType: 'dash',     // 明确列表项类型
+      // 新增：支持任务列表
+      tasklists: true
     });
     
-    const { root, features } = transformer.transform(markdown);
+    // 修复：添加预处理步骤处理复杂结构
+    const preprocessedMarkdown = markdown
+      .replace(/^(\s*)- \[(x| )\] /mg, '$1* ') // 转换任务列表
+      .replace(/^(\s*)\d+\. /mg, '$1* ');      // 转换有序列表
+    
+    const { root, features } = transformer.transform(preprocessedMarkdown);
 
     // 返回转换后的数据
     return res.status(200).json({ 
