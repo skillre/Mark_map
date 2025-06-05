@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown思维导图API客户端</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/markmap-toolbar@0.14.4/dist/style.css">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background-color: #2196F3;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        .editor-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            border-right: 1px solid #ddd;
+            background-color: white;
+        }
+        .mindmap-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        #editor {
+            width: 100%;
+            height: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            resize: none;
+            flex: 1;
+        }
+        .controls {
+            margin-top: 1rem;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0b7dda;
+        }
+        .svg-container {
+            width: 100%;
+            height: 100%;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+        .api-info {
+            background-color: #e3f2fd;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+            border-left: 4px solid #2196F3;
+        }
+        .api-info pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .api-response {
+            margin-top: 1rem;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+        .back-link {
+            margin-top: 1rem;
+            text-align: center;
+        }
+        .back-link a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Markdown思维导图API客户端</h1>
+    </div>
+    <div class="container">
+        <div class="editor-container">
+            <div class="api-info">
+                <h2>API使用说明</h2>
+                <p>本页面演示如何使用API将Markdown转换为思维导图。API端点：</p>
+                <pre>/api/convert</pre>
+                <p>请求方法：POST</p>
+                <p>请求体格式：</p>
+                <pre>{
+  "markdown": "# 你的Markdown内容"
+}</pre>
+                <p>响应格式：</p>
+                <pre>{
+  "root": { /* 思维导图数据结构 */ },
+  "features": { /* 特性标记 */ }
+}</pre>
+            </div>
+            <textarea id="editor" placeholder="在此输入Markdown内容...">## API测试
+
+### 请求格式
+- POST /api/convert
+- Content-Type: application/json
+- Body: { "markdown": "..." }
+
+### 响应格式
+- 成功: 200 OK
+- 失败: 4xx/5xx 错误
+
+### 使用场景
+- 网站集成
+- 移动应用
+- 第三方工具</textarea>
+            <div class="controls">
+                <button id="api-call-btn">调用API</button>
+                <button id="clear-btn">清空</button>
+            </div>
+            <div class="api-response" id="api-response">
+                <h3>API响应</h3>
+                <pre id="response-content"></pre>
+            </div>
+            <div class="back-link">
+                <a href="index.html">返回主页面</a>
+            </div>
+        </div>
+        <div class="mindmap-container">
+            <div class="loading" id="loading">生成中...</div>
+            <div class="svg-container" id="mindmap"></div>
+        </div>
+    </div>
+
+    <!-- 引入markmap相关库 -->
+    <script src="https://cdn.jsdelivr.net/npm/d3@6.7.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.14.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-toolbar@0.14.4/dist/index.umd.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取DOM元素
+            const editor = document.getElementById('editor');
+            const apiCallBtn = document.getElementById('api-call-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const mindmapContainer = document.getElementById('mindmap');
+            const loadingIndicator = document.getElementById('loading');
+            const apiResponse = document.getElementById('api-response');
+            const responseContent = document.getElementById('response-content');
+
+            // 初始化markmap
+            let markmapInstance;
+
+            // 绑定事件
+            apiCallBtn.addEventListener('click', callApi);
+            clearBtn.addEventListener('click', clearEditor);
+
+            // 调用API
+            function callApi() {
+                const markdown = editor.value;
+                if (!markdown.trim()) {
+                    alert('请输入Markdown内容');
+                    return;
+                }
+
+                // 显示加载指示器
+                loadingIndicator.style.display = 'block';
+                
+                // 调用API
+                fetch('/api/convert', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ markdown }),
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP错误! 状态: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // 显示API响应
+                    responseContent.textContent = JSON.stringify(data, null, 2);
+                    apiResponse.style.display = 'block';
+                    
+                    // 生成思维导图
+                    renderMindmap(data.root);
+                })
+                .catch(error => {
+                    console.error('API调用出错:', error);
+                    alert('API调用出错: ' + error.message);
+                    loadingIndicator.style.display = 'none';
+                });
+            }
+
+            // 渲染思维导图
+            function renderMindmap(root) {
+                try {
+                    // 清空现有内容
+                    mindmapContainer.innerHTML = '';
+                    
+                    // 创建SVG元素
+                    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    svg.setAttribute('width', '100%');
+                    svg.setAttribute('height', '100%');
+                    mindmapContainer.appendChild(svg);
+                    
+                    // 创建markmap实例
+                    const { Markmap } = window.markmap;
+                    markmapInstance = Markmap.create(svg, {
+                        autoFit: true,
+                        maxWidth: 300,
+                    }, root);
+                    
+                    // 添加工具栏
+                    const { Toolbar } = window.markmapToolbar;
+                    const toolbar = new Toolbar();
+                    toolbar.attach(markmapInstance);
+                    
+                    // 隐藏加载指示器
+                    loadingIndicator.style.display = 'none';
+                } catch (error) {
+                    console.error('生成思维导图时出错:', error);
+                    alert('生成思维导图时出错: ' + error.message);
+                    loadingIndicator.style.display = 'none';
+                }
+            }
+
+            // 清空编辑器
+            function clearEditor() {
+                editor.value = '';
+                editor.focus();
+                apiResponse.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

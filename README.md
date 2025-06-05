@@ -1,96 +1,53 @@
 # Markdown思维导图生成器
 
-一个基于markmap-lib的在线思维导图生成服务，可以将Markdown文本转换为交互式思维导图。
+## 项目简介
+
+这是一个基于Web的工具，可以将Markdown格式的文本转换为交互式思维导图。该工具使用markmap库实现Markdown到思维导图的转换，提供了直观、美观的可视化效果。
 
 ## 功能特点
 
-- 支持通过文本输入或文件上传方式生成思维导图
-- 生成交互式HTML思维导图，支持缩放和平移
-- 标准化API接口，支持API密钥认证和速率限制
-- 简洁美观的用户界面
-- 优化的内存使用和错误处理
-- 支持在Vercel上部署
+- **实时转换**：输入Markdown文本，点击按钮即可生成思维导图
+- **示例模板**：提供基础和高级示例，帮助用户快速上手
+- **导出功能**：支持将生成的思维导图导出为SVG格式
+- **交互控制**：内置缩放、平移等交互控制功能
+- **美观界面**：简洁直观的用户界面设计
+
+## 使用方法
+
+1. 在左侧编辑区输入Markdown格式的文本
+2. 点击「生成思维导图」按钮
+3. 在右侧查看生成的思维导图
+4. 可以使用鼠标滚轮缩放思维导图，拖动移动视图
+5. 点击「保存为SVG」按钮可以下载思维导图
+
+## Markdown语法提示
+
+思维导图的层级结构基于Markdown的标题层级：
+
+```markdown
+# 一级标题（根节点）
+## 二级标题（一级分支）
+### 三级标题（二级分支）
+#### 四级标题（三级分支）
+```
+
+也可以使用列表来创建子节点：
+
+```markdown
+# 主题
+## 分支1
+- 子节点1
+- 子节点2
+  - 更深层次的子节点
+```
 
 ## 技术栈
 
-- Node.js
-- Express.js
-- markmap-lib - 用于生成思维导图
-- 模块化架构，优化代码组织
+- HTML5/CSS3：页面结构和样式
+- JavaScript：交互逻辑
+- markmap：Markdown到思维导图的转换库
+- D3.js：可视化渲染
 
-## 本地开发
+## 部署信息
 
-1. 克隆仓库
-```
-git clone <仓库地址>
-cd markmap-service
-```
-
-2. 安装依赖
-```
-npm install
-```
-
-3. 启动开发服务器
-```
-npm run dev
-```
-
-4. 访问 http://localhost:3000
-
-## 部署到Vercel
-
-本项目已配置为可以直接部署到Vercel。
-
-1. 在Vercel上创建新项目
-2. 导入此Git仓库
-3. 部署
-
-## API使用
-
-### API密钥认证
-
-所有API请求需要包含有效的API密钥。可以通过以下两种方式之一提供：
-
-1. 请求头: `X-API-Key: your-api-key`
-2. 查询参数: `?apiKey=your-api-key`
-
-### 转换API
-
-#### 从文本或文件生成思维导图
-
-```
-POST /api/convert
-Content-Type: multipart/form-data
-X-API-Key: your-api-key
-
-markdown_text: 你的Markdown文本内容
-或
-markdown_file: <上传的Markdown文件>
-```
-
-#### 响应格式
-
-```json
-{
-  "success": true,
-  "message": "思维导图生成成功",
-  "html_url": "/output/markmap-1234567890-abcd.html"
-}
-```
-
-## 环境变量配置
-
-- `PORT`: 服务运行端口（默认: 3000）
-- `API_KEYS`: 以逗号分隔的API密钥列表（默认: "dev-key,test-key"）
-- `API_RATE_LIMIT`: 每个API密钥每小时的请求限制（默认: 100）
-
-## 注意事项
-
-- 只有Markdown标题会被解析为思维导图节点
-- 超过500KB的Markdown文件将被拒绝处理
-- 生成的文件会在服务器上临时存储24小时
-
-## 许可证
-
-MIT 
+本项目部署在Vercel平台上，使用静态网站托管服务。

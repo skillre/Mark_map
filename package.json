@@ -1,27 +1,19 @@
 {
-  "name": "markmap-service",
+  "name": "markdown-mindmap-generator",
   "version": "1.0.0",
-  "description": "将Markdown文本转换为HTML交互式思维导图的API服务",
-  "main": "api/index.js",
+  "description": "将Markdown转换为思维导图的Web应用",
+  "main": "index.html",
   "scripts": {
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js",
-    "build": "mkdir -p dist && cp -r src public api package.json vercel.json dist/",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["markmap", "mindmap", "markdown", "api"],
+  "keywords": [
+    "markdown",
+    "mindmap",
+    "visualization"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "markmap-lib": "^0.14.4",
-    "express": "^4.18.2",
-    "multer": "^1.4.5-lts.1",
-    "cors": "^2.8.5"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
-  },
-  "engines": {
-    "node": ">=14.0.0"
+    "markmap-lib": "^0.14.4"
   }
-} 
+}
