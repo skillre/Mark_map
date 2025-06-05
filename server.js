@@ -4,8 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
-const chromium = require('chrome-aws-lambda');
-const puppeteer = require('puppeteer-core');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -49,38 +47,6 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// 获取适用于当前环境的浏览器实例
-async function getBrowser() {
-  if (isVercel) {
-    // Vercel Serverless环境
-    return await puppeteer.launch({
-      args: [...chromium.args, '--disable-dev-shm-usage'],
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath,
-      headless: true,
-      ignoreHTTPSErrors: true,
-    });
-  } else {
-    // 本地开发环境
-    let puppeteerLocal;
-    try {
-      // 尝试加载本地安装的puppeteer
-      puppeteerLocal = require('puppeteer');
-    } catch (error) {
-      console.error('无法加载puppeteer，将使用puppeteer-core');
-      return await puppeteer.launch({
-        headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
-    }
-    
-    return await puppeteerLocal.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-  }
-}
-
 // 从文本生成思维导图HTML
 app.post('/api/generate', async (req, res) => {
   try {
@@ -92,7 +58,6 @@ app.post('/api/generate', async (req, res) => {
     const id = uuidv4();
     const mdFilePath = path.join(tempDir, `${id}.md`);
     const htmlFilePath = path.join(outputDir, `${id}.html`);
-    const pngFilePath = path.join(outputDir, `${id}.png`);
 
     // 保存markdown到临时文件
     fs.writeFileSync(mdFilePath, markdown);
@@ -111,61 +76,20 @@ app.post('/api/generate', async (req, res) => {
     // 读取生成的HTML内容
     const htmlContent = fs.readFileSync(htmlFilePath, 'utf8');
 
-    // 使用puppeteer生成PNG图片
-    const browser = await getBrowser();
-    const page = await browser.newPage();
-    
     if (isVercel) {
-      // 在Vercel环境中，直接传递HTML内容
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    } else {
-      // 本地环境，使用文件URL
-      await page.goto(`file://${htmlFilePath}`, { waitUntil: 'networkidle0' });
-    }
-    
-    await page.setViewport({ width: 1200, height: 800, deviceScaleFactor: 2 });
-    
-    // 等待markmap渲染完成
-    await page.waitForFunction('typeof markmap !== "undefined" && document.querySelector("svg g")');
-    
-    // 获取SVG内容区域尺寸
-    const dimensions = await page.evaluate(() => {
-      const svg = document.querySelector('svg');
-      const bbox = svg.querySelector('g').getBBox();
-      return {
-        width: Math.ceil(bbox.width) + 100,
-        height: Math.ceil(bbox.height) + 100
-      };
-    });
-    
-    // 重新设置视口大小
-    await page.setViewport({ 
-      width: dimensions.width, 
-      height: dimensions.height, 
-      deviceScaleFactor: 2 
-    });
-    
-    // 截图
-    const screenshot = await page.screenshot({ encoding: 'base64' });
-    await browser.close();
-
-    // Vercel环境中，将数据作为内存对象返回
-    if (isVercel) {
+      // Vercel环境中，将数据作为Base64返回
       res.json({
         success: true,
         files: {
-          html: `data:text/html;base64,${Buffer.from(htmlContent).toString('base64')}`,
-          png: `data:image/png;base64,${screenshot}`
+          html: `data:text/html;base64,${Buffer.from(htmlContent).toString('base64')}`
         }
       });
     } else {
-      // 本地环境，保存文件并返回URL
-      fs.writeFileSync(pngFilePath, Buffer.from(screenshot, 'base64'));
+      // 本地环境，返回文件URL
       res.json({
         success: true,
         files: {
-          html: `/api/file/${id}.html`,
-          png: `/api/file/${id}.png`,
+          html: `/api/file/${id}.html`
         }
       });
     }
@@ -185,7 +109,6 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     const id = path.basename(req.file.filename, path.extname(req.file.filename));
     const mdFilePath = req.file.path;
     const htmlFilePath = path.join(outputDir, `${id}.html`);
-    const pngFilePath = path.join(outputDir, `${id}.png`);
 
     // 使用markmap-cli生成HTML思维导图
     await new Promise((resolve, reject) => {
@@ -201,61 +124,20 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     // 读取生成的HTML内容
     const htmlContent = fs.readFileSync(htmlFilePath, 'utf8');
 
-    // 使用puppeteer生成PNG图片
-    const browser = await getBrowser();
-    const page = await browser.newPage();
-    
     if (isVercel) {
-      // 在Vercel环境中，直接传递HTML内容
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    } else {
-      // 本地环境，使用文件URL
-      await page.goto(`file://${htmlFilePath}`, { waitUntil: 'networkidle0' });
-    }
-    
-    await page.setViewport({ width: 1200, height: 800, deviceScaleFactor: 2 });
-    
-    // 等待markmap渲染完成
-    await page.waitForFunction('typeof markmap !== "undefined" && document.querySelector("svg g")');
-    
-    // 获取SVG内容区域尺寸
-    const dimensions = await page.evaluate(() => {
-      const svg = document.querySelector('svg');
-      const bbox = svg.querySelector('g').getBBox();
-      return {
-        width: Math.ceil(bbox.width) + 100,
-        height: Math.ceil(bbox.height) + 100
-      };
-    });
-    
-    // 重新设置视口大小
-    await page.setViewport({ 
-      width: dimensions.width, 
-      height: dimensions.height, 
-      deviceScaleFactor: 2 
-    });
-    
-    // 截图
-    const screenshot = await page.screenshot({ encoding: 'base64' });
-    await browser.close();
-
-    // Vercel环境中，将数据作为内存对象返回
-    if (isVercel) {
+      // Vercel环境中，将数据作为Base64返回
       res.json({
         success: true,
         files: {
-          html: `data:text/html;base64,${Buffer.from(htmlContent).toString('base64')}`,
-          png: `data:image/png;base64,${screenshot}`
+          html: `data:text/html;base64,${Buffer.from(htmlContent).toString('base64')}`
         }
       });
     } else {
-      // 本地环境，保存文件并返回URL
-      fs.writeFileSync(pngFilePath, Buffer.from(screenshot, 'base64'));
+      // 本地环境，返回文件URL
       res.json({
         success: true,
         files: {
-          html: `/api/file/${id}.html`,
-          png: `/api/file/${id}.png`,
+          html: `/api/file/${id}.html`
         }
       });
     }

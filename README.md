@@ -1,13 +1,12 @@
 # Markmap思维导图生成器
 
-这是一个基于markmap-cli构建的思维导图生成服务，可以将Markdown文本转换为交互式思维导图和图片。
+这是一个基于markmap-cli构建的思维导图生成服务，可以将Markdown文本转换为交互式思维导图。
 
 ## 功能特点
 
 - 支持Markdown文本直接转换为思维导图
 - 支持上传Markdown文件生成思维导图
 - 生成HTML格式的交互式思维导图
-- 自动生成PNG格式的思维导图图片
 - 美观的用户界面，操作简单
 
 ## 支持的Markdown语法
@@ -22,7 +21,6 @@
 - 前端：Next.js、React
 - 后端：Express.js
 - 思维导图生成：markmap-cli
-- 图片生成：Puppeteer
 
 ## 本地开发
 
@@ -53,7 +51,7 @@ npm run dev
 1. 在编辑器中输入Markdown文本或上传Markdown文件
 2. 点击"生成思维导图"按钮
 3. 在预览页面查看生成的思维导图
-4. 下载HTML或PNG格式的思维导图
+4. 下载HTML格式的思维导图
 
 ## 许可证
 

@@ -12,8 +12,16 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/server.js"
+      "src": "/api/generate",
+      "dest": "api/generate/index.js"
+    },
+    {
+      "src": "/api/upload",
+      "dest": "api/upload/index.js"
+    },
+    {
+      "src": "/api/file/(.*)",
+      "dest": "api/file/[filename].js"
     },
     {
       "src": "/(.*)",

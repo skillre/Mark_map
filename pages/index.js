@@ -239,34 +239,6 @@ export default function Home() {
                           查看HTML版本
                         </a>
                       )}
-                      
-                      {isDataUrl(result.files.png) ? (
-                        <a 
-                          href={result.files.png}
-                          className={styles.downloadButton}
-                          download="mindmap.png"
-                        >
-                          下载PNG图片
-                        </a>
-                      ) : (
-                        <>
-                          <a 
-                            href={result.files.png} 
-                            className={styles.downloadButton}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            查看PNG图片
-                          </a>
-                          <a 
-                            href={result.files.png} 
-                            className={styles.downloadButton}
-                            download="mindmap.png"
-                          >
-                            下载PNG图片
-                          </a>
-                        </>
-                      )}
                     </div>
                   </div>
                 </>
