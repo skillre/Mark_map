@@ -131,18 +131,96 @@
         </div>
     </div>
 
-    <!-- 引入markmap相关库 -->
+    <!-- 引入markmap相关库 - 使用多个CDN源以提高可靠性 -->
+    <!-- 预加载所有脚本，提高加载速度 -->
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/d3@6.7.0" as="script">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/markmap-lib@0.14.4/dist/browser/index.min.js" as="script">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/markmap-view@0.14.4" as="script">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/markmap-toolbar@0.14.4/dist/index.umd.min.js" as="script">
+    
+    <!-- D3库 -->
     <script src="https://cdn.jsdelivr.net/npm/d3@6.7.0"></script>
+    <script>
+        // 如果主要CDN加载失败，尝试备用CDN
+        if (typeof d3 === 'undefined') {
+            console.warn('从主CDN加载D3失败，尝试备用CDN');
+            document.write('<script src="https://unpkg.com/d3@6.7.0"><\/script>');
+        }
+    </script>
+    
+    <!-- markmap-lib库 -->
     <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.14.4/dist/browser/index.min.js"></script>
+    <script>
+        // 如果主要CDN加载失败，尝试备用CDN
+        if (typeof window.markmapLib === 'undefined') {
+            console.warn('从主CDN加载markmap-lib失败，尝试备用CDN');
+            document.write('<script src="https://unpkg.com/markmap-lib@0.14.4/dist/browser/index.min.js"><\/script>');
+        }
+    </script>
+    
+    <!-- markmap-view库 -->
     <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.14.4"></script>
+    <script>
+        // 如果主要CDN加载失败，尝试备用CDN
+        if (typeof window.markmap === 'undefined') {
+            console.warn('从主CDN加载markmap-view失败，尝试备用CDN');
+            document.write('<script src="https://unpkg.com/markmap-view@0.14.4"><\/script>');
+        }
+    </script>
+    
+    <!-- markmap-toolbar库 -->
     <script src="https://cdn.jsdelivr.net/npm/markmap-toolbar@0.14.4/dist/index.umd.min.js"></script>
+    <script>
+        // 如果主要CDN加载失败，尝试备用CDN
+        if (typeof window.markmapToolbar === 'undefined') {
+            console.warn('从主CDN加载markmap-toolbar失败，尝试备用CDN');
+            document.write('<script src="https://unpkg.com/markmap-toolbar@0.14.4/dist/index.umd.min.js"><\/script>');
+        }
+    </script>
+    
+    <!-- 添加脚本加载重试机制 -->
+    <script>
+        // 检查所有必要的库是否已加载
+        function checkLibrariesLoaded() {
+            return typeof d3 !== 'undefined' && 
+                   typeof window.markmap !== 'undefined' && 
+                   typeof window.markmapLib !== 'undefined' && 
+                   typeof window.markmapToolbar !== 'undefined';
+        }
+        
+        // 5秒后检查库是否加载，如果没有则提示用户刷新
+        setTimeout(function() {
+            if (!checkLibrariesLoaded()) {
+                console.error('5秒后检查：部分库未能加载');
+                if (confirm('页面资源加载不完整，这可能会影响思维导图的生成。是否刷新页面重试？')) {
+                    window.location.reload();
+                }
+            }
+        }, 5000);
+    </script>
     
     <script>
         // 检查markmap库是否正确加载
         window.addEventListener('DOMContentLoaded', function() {
             if (!window.markmap || !window.markmapLib) {
                 console.error('markmap库未正确加载');
-                alert('页面加载不完整，请刷新页面重试。如果问题持续存在，请清除浏览器缓存后再试。');
+                console.log('尝试加载本地备份库...');
+                
+                // 动态加载本地备份库
+                var script = document.createElement('script');
+                script.src = '/js/lib/markmap-bundle.js';
+                script.onload = function() {
+                    console.log('本地备份库加载完成，重新初始化应用...');
+                    // 重新初始化应用
+                    if (typeof initApp === 'function') {
+                        initApp();
+                    }
+                };
+                script.onerror = function() {
+                    console.error('本地备份库加载失败');
+                    alert('页面加载不完整，请刷新页面重试。如果问题持续存在，请清除浏览器缓存后再试。');
+                };
+                document.head.appendChild(script);
             } else {
                 console.log('markmap库加载成功');
             }

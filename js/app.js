@@ -1,4 +1,21 @@
-document.addEventListener('DOMContentLoaded', function() {
+// 定义一个全局初始化函数，可以在本地备份库加载后调用
+window.initApp = function() {
+    console.log('初始化应用...');
+    
+    // 检查全局对象
+    console.log('检查全局对象:', {
+        'd3存在': typeof d3 !== 'undefined',
+        'markmap存在': typeof window.markmap !== 'undefined',
+        'markmapLib存在': typeof window.markmapLib !== 'undefined',
+        'markmapToolbar存在': typeof window.markmapToolbar !== 'undefined'
+    });
+    
+    // 初始化应用逻辑
+    initializeApp();
+};
+
+// 主应用逻辑
+function initializeApp() {
     // 获取DOM元素
     const editor = document.getElementById('editor');
     const generateBtn = document.getElementById('generate-btn');
@@ -110,6 +127,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 生成思维导图
     function generateMindmap() {
+        console.log('开始生成思维导图...');
         const markdown = editor.value;
         if (!markdown.trim()) {
             alert('请输入Markdown内容');
@@ -119,9 +137,18 @@ document.addEventListener('DOMContentLoaded', function() {
         // 显示加载指示器
         loadingIndicator.style.display = 'block';
         
+        // 再次检查全局对象
+        console.log('生成思维导图前检查全局对象:', {
+            'd3存在': typeof d3 !== 'undefined',
+            'markmap存在': typeof window.markmap !== 'undefined',
+            'markmapLib存在': typeof window.markmapLib !== 'undefined',
+            'markmapToolbar存在': typeof window.markmapToolbar !== 'undefined'
+        });
+        
         // 使用setTimeout让UI有时间更新
         setTimeout(() => {
             try {
+                console.log('清空容器并创建SVG元素...');
                 // 清空现有内容
                 mindmapContainer.innerHTML = '';
                 
@@ -132,23 +159,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 mindmapContainer.appendChild(svg);
                 
                 // 使用markmap转换Markdown为思维导图
-                if (!window.markmap || !window.markmapLib) {
+                if (!window.markmap) {
+                    console.error('window.markmap对象不存在');
                     throw new Error('markmap库未正确加载，请刷新页面重试');
                 }
                 
+                if (!window.markmapLib) {
+                    console.error('window.markmapLib对象不存在');
+                    throw new Error('markmap-lib库未正确加载，请刷新页面重试');
+                }
+                
+                console.log('开始解构markmap对象...');
                 const { Markmap, loadCSS, loadJS } = window.markmap;
+                console.log('开始解构markmapLib对象...');
                 const { Transformer } = window.markmapLib;
                 
+                console.log('创建Transformer实例并转换Markdown...');
                 // 转换Markdown为思维导图数据
                 const transformer = new Transformer();
                 const { root, features } = transformer.transform(markdown);
                 
                 // 加载必要的CSS和JS
                 if (features.katex) {
+                    console.log('加载KaTeX资源...');
                     loadCSS('https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.css');
                     loadJS('https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.js');
                 }
                 
+                console.log('创建Markmap实例...');
                 // 创建markmap实例
                 markmapInstance = Markmap.create(svg, {
                     autoFit: true,
@@ -156,15 +194,47 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, root);
                 
                 // 添加工具栏
-                const { Toolbar } = window.markmapToolbar;
-                const toolbar = new Toolbar();
-                toolbar.attach(markmapInstance);
+                console.log('添加工具栏...');
+                if (!window.markmapToolbar) {
+                    console.warn('markmapToolbar不存在，跳过工具栏添加');
+                } else {
+                    try {
+                        const { Toolbar } = window.markmapToolbar;
+                        const toolbar = new Toolbar();
+                        toolbar.attach(markmapInstance);
+                        console.log('工具栏添加成功');
+                    } catch (toolbarError) {
+                        console.error('添加工具栏时出错:', toolbarError);
+                        // 工具栏添加失败不影响主要功能，继续执行
+                    }
+                }
                 
+                console.log('思维导图生成成功');
                 // 隐藏加载指示器
                 loadingIndicator.style.display = 'none';
             } catch (error) {
                 console.error('生成思维导图时出错:', error);
-                alert('生成思维导图时出错: ' + error.message);
+                
+                // 详细记录错误信息
+                console.error('错误详情:', {
+                    '错误消息': error.message,
+                    '错误堆栈': error.stack,
+                    'd3存在': typeof d3 !== 'undefined',
+                    'markmap存在': typeof window.markmap !== 'undefined',
+                    'markmapLib存在': typeof window.markmapLib !== 'undefined',
+                    'markmapToolbar存在': typeof window.markmapToolbar !== 'undefined'
+                });
+                
+                // 根据错误类型提供更具体的提示
+                let errorMessage = '生成思维导图时出错: ' + error.message;
+                
+                if (error.message.includes('markmap库未正确加载')) {
+                    errorMessage += '\n\n可能的解决方法:\n1. 刷新页面\n2. 清除浏览器缓存\n3. 尝试使用不同的浏览器\n4. 检查网络连接';
+                } else if (error.message.includes('undefined')) {
+                    errorMessage += '\n\n这可能是由于JavaScript库加载不完整导致的。请尝试刷新页面或清除浏览器缓存。';
+                }
+                
+                alert(errorMessage);
                 loadingIndicator.style.display = 'none';
             }
         }, 100);
@@ -216,4 +286,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 初始化应用
     init();
+}
+
+// 在DOM加载完成后自动初始化应用
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM加载完成，自动初始化应用...');
+    window.initApp();
 });
