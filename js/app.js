@@ -132,6 +132,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 mindmapContainer.appendChild(svg);
                 
                 // 使用markmap转换Markdown为思维导图
+                if (!window.markmap || !window.markmapLib) {
+                    throw new Error('markmap库未正确加载，请刷新页面重试');
+                }
+                
                 const { Markmap, loadCSS, loadJS } = window.markmap;
                 const { Transformer } = window.markmapLib;
                 

@@ -133,9 +133,21 @@
 
     <!-- 引入markmap相关库 -->
     <script src="https://cdn.jsdelivr.net/npm/d3@6.7.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.14.4"></script>
     <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.14.4/dist/browser/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.14.4"></script>
     <script src="https://cdn.jsdelivr.net/npm/markmap-toolbar@0.14.4/dist/index.umd.min.js"></script>
+    
+    <script>
+        // 检查markmap库是否正确加载
+        window.addEventListener('DOMContentLoaded', function() {
+            if (!window.markmap || !window.markmapLib) {
+                console.error('markmap库未正确加载');
+                alert('页面加载不完整，请刷新页面重试。如果问题持续存在，请清除浏览器缓存后再试。');
+            } else {
+                console.log('markmap库加载成功');
+            }
+        });
+    </script>
 
     <script src="/js/app.js"></script>
 </body>
