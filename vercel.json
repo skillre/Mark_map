@@ -3,18 +3,24 @@
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node",
-      "config": { 
-        "maxLambdaSize": "10mb",
-        "includeFiles": ["public/**"]
-      }
+      "use": "@vercel/node"
+    },
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "server.js",
-      "methods": ["GET", "POST"]
+      "dest": "server.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 } 
