@@ -178,11 +178,14 @@ function initializeApp() {
                 // 转换Markdown为思维导图数据
                 const transformer = new Transformer({
                     // 确保列表结构被正确处理
-                    bulletListMarker: '-',
-                    listItemIndent: 'tab',
+                    bulletListMarker: '-',  // 支持 - 作为无序列表标记
+                    listItemIndent: 'tab',  // 使用制表符缩进列表项
                     // 启用更多Markdown特性
-                    breaks: true,
-                    gfm: true
+                    breaks: true,           // 支持换行
+                    gfm: true,              // 启用GitHub风格Markdown
+                    // 增强列表支持
+                    pedantic: false,        // 不使用严格模式，更宽松地解析列表
+                    commonmark: true        // 使用CommonMark规范解析Markdown
                 });
                 const { root, features } = transformer.transform(markdown);
                 
