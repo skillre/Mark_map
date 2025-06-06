@@ -44,7 +44,8 @@ export default function Home() {
     
     try {
       console.log('发送生成请求');
-      const response = await fetch('/api/generate', {
+      // 使用直接API路由
+      const response = await fetch('/api/generate/index', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -101,7 +102,8 @@ export default function Home() {
     
     try {
       console.log('发送上传请求');
-      const response = await fetch('/api/upload', {
+      // 使用直接API路由
+      const response = await fetch('/api/upload/index', {
         method: 'POST',
         body: formData,
       });

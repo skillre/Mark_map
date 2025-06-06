@@ -12,8 +12,20 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "src": "/api/generate/index",
+      "dest": "/api/generate/index.js"
+    },
+    {
+      "src": "/api/upload/index",
+      "dest": "/api/upload/index.js"
+    },
+    {
+      "src": "/api/health",
+      "dest": "/api/health.js"
+    },
+    {
+      "src": "/api/file/(.*)",
+      "dest": "/api/file/[filename].js"
     },
     {
       "src": "/(.*)",
