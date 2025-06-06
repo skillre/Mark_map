@@ -55,4 +55,14 @@ export default function handler(req, res) {
       details: error.message
     });
   }
-} 
+}
+
+// 设置API配置
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+    responseLimit: '10mb',
+  },
+}; 
