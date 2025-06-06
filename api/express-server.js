@@ -5,33 +5,24 @@ const path = require('path');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 
+// 创建Express应用
 const app = express();
-const port = process.env.PORT || 3000;
-const isVercel = process.env.VERCEL === '1';
-
-// 在Vercel环境中使用/tmp目录
-const baseDir = isVercel ? '/tmp' : __dirname;
-const tempDir = path.join(baseDir, 'temp');
-const outputDir = path.join(baseDir, 'output');
-
-// 指定静态文件目录
-if (!isVercel) {
-  app.use(express.static('public'));
-  app.use(express.static('output'));
-}
 app.use(express.json());
+
+// 临时目录和输出目录
+const tempDir = '/tmp/temp';
+const outputDir = '/tmp/output';
 
 // 确保目录存在
 try {
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
   }
-
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }
-} catch (err) {
-  console.error('创建目录失败:', err);
+} catch (error) {
+  console.error('创建目录失败:', error);
 }
 
 // 文件上传配置
@@ -47,8 +38,17 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// 从文本生成思维导图HTML
-app.post('/api/generate', async (req, res) => {
+// 健康检查API
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    version: '1.0',
+    time: new Date().toISOString()
+  });
+});
+
+// 生成思维导图API
+app.post('/generate', async (req, res) => {
   console.log('收到生成请求:', req.body);
   
   try {
@@ -57,15 +57,16 @@ app.post('/api/generate', async (req, res) => {
       return res.status(400).json({ error: '缺少markdown内容' });
     }
 
+    // 生成唯一ID
     const id = uuidv4();
     const mdFilePath = path.join(tempDir, `${id}.md`);
     const htmlFilePath = path.join(outputDir, `${id}.html`);
 
-    // 保存markdown到临时文件
+    // 保存Markdown文件
     fs.writeFileSync(mdFilePath, markdown);
     console.log('已保存Markdown文件:', mdFilePath);
 
-    // 使用markmap-cli生成HTML思维导图
+    // 使用markmap-cli生成HTML
     await new Promise((resolve, reject) => {
       const command = `npx markmap-cli ${mdFilePath} -o ${htmlFilePath}`;
       console.log('执行命令:', command);
@@ -81,37 +82,26 @@ app.post('/api/generate', async (req, res) => {
         resolve();
       });
     });
-    console.log('已生成HTML文件:', htmlFilePath);
 
-    // 读取生成的HTML内容
+    // 读取生成的HTML
     const htmlContent = fs.readFileSync(htmlFilePath, 'utf8');
     console.log('HTML内容长度:', htmlContent.length);
 
-    if (isVercel) {
-      // Vercel环境中，将数据作为Base64返回
-      res.json({
-        success: true,
-        files: {
-          html: `data:text/html;base64,${Buffer.from(htmlContent).toString('base64')}`
-        }
-      });
-    } else {
-      // 本地环境，返回文件URL
-      res.json({
-        success: true,
-        files: {
-          html: `/api/file/${id}.html`
-        }
-      });
-    }
+    // 返回数据URL
+    res.json({
+      success: true,
+      files: {
+        html: `data:text/html;base64,${Buffer.from(htmlContent).toString('base64')}`
+      }
+    });
   } catch (error) {
     console.error('生成思维导图错误:', error);
     res.status(500).json({ error: '生成思维导图失败', details: error.message });
   }
 });
 
-// 从文件生成思维导图HTML
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+// 上传文件生成思维导图API
+app.post('/upload', upload.single('file'), async (req, res) => {
   console.log('收到上传请求');
   
   try {
@@ -120,11 +110,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     }
     console.log('已上传文件:', req.file.path);
 
+    // 获取文件信息
     const id = path.basename(req.file.filename, path.extname(req.file.filename));
     const mdFilePath = req.file.path;
     const htmlFilePath = path.join(outputDir, `${id}.html`);
 
-    // 使用markmap-cli生成HTML思维导图
+    // 使用markmap-cli生成HTML
     await new Promise((resolve, reject) => {
       const command = `npx markmap-cli ${mdFilePath} -o ${htmlFilePath}`;
       console.log('执行命令:', command);
@@ -140,71 +131,22 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         resolve();
       });
     });
-    console.log('已生成HTML文件:', htmlFilePath);
 
-    // 读取生成的HTML内容
+    // 读取生成的HTML
     const htmlContent = fs.readFileSync(htmlFilePath, 'utf8');
     console.log('HTML内容长度:', htmlContent.length);
 
-    if (isVercel) {
-      // Vercel环境中，将数据作为Base64返回
-      res.json({
-        success: true,
-        files: {
-          html: `data:text/html;base64,${Buffer.from(htmlContent).toString('base64')}`
-        }
-      });
-    } else {
-      // 本地环境，返回文件URL
-      res.json({
-        success: true,
-        files: {
-          html: `/api/file/${id}.html`
-        }
-      });
-    }
+    // 返回数据URL
+    res.json({
+      success: true,
+      files: {
+        html: `data:text/html;base64,${Buffer.from(htmlContent).toString('base64')}`
+      }
+    });
   } catch (error) {
     console.error('生成思维导图错误:', error);
     res.status(500).json({ error: '生成思维导图失败', details: error.message });
   }
 });
 
-// 访问生成的文件
-app.get('/api/file/:filename', (req, res) => {
-  const filename = req.params.filename;
-  const filePath = path.join(outputDir, filename);
-  
-  if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    res.status(404).json({ error: '文件不存在' });
-  }
-});
-
-// 处理健康检查
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', environment: isVercel ? 'vercel' : 'local' });
-});
-
-// 如果在Vercel环境中，导出处理函数
-if (isVercel) {
-  console.log('运行在Vercel环境中');
-  // 创建一个处理函数，接收请求并路由到Express应用
-  module.exports = app;
-} else {
-  // 本地开发环境，处理对Next.js应用的请求
-  const next = require('next');
-  const dev = process.env.NODE_ENV !== 'production';
-  const nextApp = next({ dev });
-  const handle = nextApp.getRequestHandler();
-
-  nextApp.prepare().then(() => {
-    app.all('*', (req, res) => {
-      return handle(req, res);
-    });
-
-    app.listen(port, () => {
-      console.log(`服务启动成功，端口: ${port}`);
-    });
-  });
-} 
+module.exports = app; 

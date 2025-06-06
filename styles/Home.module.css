@@ -222,6 +222,25 @@
   text-decoration: underline;
 }
 
+.apiStatus {
+  padding: 6px 12px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.apiStatusOk {
+  background-color: rgba(39, 174, 96, 0.1);
+  color: var(--success-color);
+  border: 1px solid var(--success-color);
+}
+
+.apiStatusError {
+  background-color: rgba(231, 76, 60, 0.1);
+  color: var(--error-color);
+  border: 1px solid var(--error-color);
+}
+
 @media (max-width: 768px) {
   .title {
     font-size: 2rem;

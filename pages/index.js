@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
 import styles from '../styles/Home.module.css';
 
@@ -8,7 +8,29 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [activeTab, setActiveTab] = useState('editor');
+  const [apiHealth, setApiHealth] = useState(null);
   const fileInputRef = useRef(null);
+  
+  // 检查API健康状态
+  useEffect(() => {
+    async function checkApiHealth() {
+      try {
+        const response = await fetch('/api/health');
+        if (response.ok) {
+          const data = await response.json();
+          setApiHealth(data);
+        } else {
+          console.error('API健康检查失败:', response.status);
+          setApiHealth({ status: 'error', code: response.status });
+        }
+      } catch (err) {
+        console.error('API健康检查错误:', err);
+        setApiHealth({ status: 'error', message: err.message });
+      }
+    }
+    
+    checkApiHealth();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,6 +43,7 @@ export default function Home() {
     setError(null);
     
     try {
+      console.log('发送生成请求');
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
@@ -29,15 +52,26 @@ export default function Home() {
         body: JSON.stringify({ markdown }),
       });
 
+      console.log('收到响应:', response.status);
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '生成思维导图失败');
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          errorData = { error: errorText || '生成思维导图失败' };
+        }
+        throw new Error(errorData.error || `请求失败: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('解析响应数据:', data);
+      
       setResult(data);
       setActiveTab('preview');
     } catch (err) {
+      console.error('请求错误:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -66,20 +100,32 @@ export default function Home() {
     setError(null);
     
     try {
+      console.log('发送上传请求');
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
 
+      console.log('收到响应:', response.status);
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '生成思维导图失败');
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          errorData = { error: errorText || '生成思维导图失败' };
+        }
+        throw new Error(errorData.error || `请求失败: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('解析响应数据:', data);
+      
       setResult(data);
       setActiveTab('preview');
     } catch (err) {
+      console.error('请求错误:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -118,6 +164,12 @@ export default function Home() {
         <p className={styles.description}>
           将Markdown文本转换为美观的思维导图
         </p>
+        
+        {apiHealth && (
+          <div className={`${styles.apiStatus} ${apiHealth.status === 'ok' ? styles.apiStatusOk : styles.apiStatusError}`}>
+            API状态: {apiHealth.status === 'ok' ? '正常' : '异常'}
+          </div>
+        )}
 
         <div className={styles.tabs}>
           <button 
