@@ -1,6 +1,6 @@
 # Markmap思维导图生成器
 
-这是一个基于markmap-cli构建的思维导图生成服务，可以将Markdown文本转换为交互式思维导图。
+这是一个基于Next.js和Markmap库构建的思维导图生成服务，可以将Markdown文本转换为交互式思维导图。
 
 ## 功能特点
 
@@ -19,8 +19,8 @@
 ## 技术栈
 
 - 前端：Next.js、React
-- 后端：Express.js
-- 思维导图生成：markmap-cli
+- 思维导图生成：markmap-lib、markmap-view
+- 文件处理：multer
 
 ## 本地开发
 

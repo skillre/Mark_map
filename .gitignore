@@ -31,6 +31,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# IDE
+.idea
+.vscode
+
 # 临时文件和输出文件
 /temp
 /output 

@@ -2,15 +2,48 @@ import { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
 import styles from '../styles/Home.module.css';
 
+// 示例Markdown
+const EXAMPLE_MARKDOWN = `# Markmap示例
+
+## 什么是Markmap
+
+Markmap是一个将Markdown转换为思维导图的工具。
+
+### 主要特点
+
+- **简单易用**
+  - 基于Markdown语法
+  - 无需额外学习
+- **功能丰富**
+  - 支持大部分Markdown语法
+  - 可以导出为图片
+
+## 支持的语法
+
+### 标题结构
+
+使用\`#\`、\`##\`、\`###\`等创建不同级别的节点。
+
+### 列表
+
+- 无序列表使用\`-\`或\`*\`
+- 有序列表使用\`1.\`、\`2.\`等
+  1. 第一项
+  2. 第二项
+
+### 超链接
+
+[访问Markmap官网](https://markmap.js.org/)`;
+
 export default function Home() {
   const [markdown, setMarkdown] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [activeTab, setActiveTab] = useState('editor');
-  const [apiHealth, setApiHealth] = useState(null);
+  const [apiStatus, setApiStatus] = useState({ checking: true });
   const fileInputRef = useRef(null);
-  
+
   // 检查API健康状态
   useEffect(() => {
     async function checkApiHealth() {
@@ -18,20 +51,38 @@ export default function Home() {
         const response = await fetch('/api/health');
         if (response.ok) {
           const data = await response.json();
-          setApiHealth(data);
+          setApiStatus({ 
+            status: 'ok', 
+            version: data.version,
+            checking: false 
+          });
         } else {
           console.error('API健康检查失败:', response.status);
-          setApiHealth({ status: 'error', code: response.status });
+          setApiStatus({ 
+            status: 'error', 
+            code: response.status,
+            checking: false 
+          });
         }
       } catch (err) {
         console.error('API健康检查错误:', err);
-        setApiHealth({ status: 'error', message: err.message });
+        setApiStatus({ 
+          status: 'error', 
+          message: err.message,
+          checking: false 
+        });
       }
     }
     
     checkApiHealth();
   }, []);
 
+  // 设置示例Markdown
+  useEffect(() => {
+    setMarkdown(EXAMPLE_MARKDOWN);
+  }, []);
+
+  // 从文本生成思维导图
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!markdown.trim()) {
@@ -43,46 +94,34 @@ export default function Home() {
     setError(null);
     
     try {
-      console.log('发送生成请求');
-      // 使用直接API路由
-      const response = await fetch('/api/generate/index', {
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ markdown }),
       });
-
-      console.log('收到响应:', response.status);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch (e) {
-          errorData = { error: errorText || '生成思维导图失败' };
-        }
-        throw new Error(errorData.error || `请求失败: ${response.status}`);
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '生成思维导图失败');
       }
 
-      const data = await response.json();
-      console.log('解析响应数据:', data);
-      
       setResult(data);
       setActiveTab('preview');
     } catch (err) {
-      console.error('请求错误:', err);
+      console.error('生成思维导图错误:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  // 从文件生成思维导图
   const handleFileUpload = async (e) => {
     e.preventDefault();
     
-    const formData = new FormData();
     const file = fileInputRef.current.files[0];
     
     if (!file) {
@@ -90,50 +129,40 @@ export default function Home() {
       return;
     }
     
-    if (file.type !== 'text/markdown' && !file.name.endsWith('.md')) {
-      setError('请上传Markdown文件');
+    if (!file.name.toLowerCase().endsWith('.md')) {
+      setError('请上传Markdown文件(.md)');
       return;
     }
     
+    const formData = new FormData();
     formData.append('file', file);
     
     setLoading(true);
     setError(null);
     
     try {
-      console.log('发送上传请求');
-      // 使用直接API路由
-      const response = await fetch('/api/upload/index', {
+      const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
-
-      console.log('收到响应:', response.status);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch (e) {
-          errorData = { error: errorText || '生成思维导图失败' };
-        }
-        throw new Error(errorData.error || `请求失败: ${response.status}`);
-      }
-
       const data = await response.json();
-      console.log('解析响应数据:', data);
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '生成思维导图失败');
+      }
       
       setResult(data);
       setActiveTab('preview');
     } catch (err) {
-      console.error('请求错误:', err);
+      console.error('文件上传错误:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  // 读取上传的文件内容
   const handleFileRead = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -155,6 +184,7 @@ export default function Home() {
       <Head>
         <title>Markmap思维导图生成器</title>
         <meta name="description" content="通过Markdown生成思维导图" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
@@ -167,9 +197,10 @@ export default function Home() {
           将Markdown文本转换为美观的思维导图
         </p>
         
-        {apiHealth && (
-          <div className={`${styles.apiStatus} ${apiHealth.status === 'ok' ? styles.apiStatusOk : styles.apiStatusError}`}>
-            API状态: {apiHealth.status === 'ok' ? '正常' : '异常'}
+        {/* API状态显示 */}
+        {!apiStatus.checking && (
+          <div className={`${styles.apiStatus} ${apiStatus.status === 'ok' ? styles.apiStatusOk : styles.apiStatusError}`}>
+            API状态: {apiStatus.status === 'ok' ? '正常' : '异常'}
           </div>
         )}
 
@@ -208,7 +239,7 @@ export default function Home() {
                     <button 
                       type="submit" 
                       className={styles.button}
-                      disabled={loading}
+                      disabled={loading || apiStatus.status !== 'ok'}
                     >
                       {loading ? '生成中...' : '生成思维导图'}
                     </button>
@@ -226,13 +257,14 @@ export default function Home() {
                       ref={fileInputRef}
                       onChange={handleFileRead}
                       className={styles.fileInput}
+                      disabled={apiStatus.status !== 'ok'}
                     />
                   </div>
                   <div className={styles.buttonGroup}>
                     <button 
                       type="submit" 
                       className={styles.button}
-                      disabled={loading}
+                      disabled={loading || !fileInputRef.current?.files?.[0] || apiStatus.status !== 'ok'}
                     >
                       {loading ? '上传中...' : '上传并生成'}
                     </button>
