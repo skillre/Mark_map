@@ -43,6 +43,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('editor');
   const [apiStatus, setApiStatus] = useState({ checking: true });
   const fileInputRef = useRef(null);
+  const iframeRef = useRef(null);
 
   // 检查API健康状态
   useEffect(() => {
@@ -179,6 +180,47 @@ export default function Home() {
     return typeof url === 'string' && url.startsWith('data:');
   };
 
+  // 导出SVG
+  const exportSVG = () => {
+    if (!iframeRef.current) return;
+    
+    try {
+      const iframe = iframeRef.current;
+      const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+      const svgElement = iframeDocument.getElementById('markmap');
+      
+      if (svgElement) {
+        // 获取SVG内容
+        const svgContent = svgElement.outerHTML;
+        
+        // 创建Blob
+        const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+        
+        // 创建下载链接
+        const url = URL.createObjectURL(blob);
+        
+        // 创建下载元素
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'mindmap.svg';
+        document.body.appendChild(a);
+        a.click();
+        
+        // 清理
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+      } else {
+        console.error('无法找到SVG元素');
+        setError('导出SVG失败，无法找到思维导图元素');
+      }
+    } catch (err) {
+      console.error('导出SVG错误:', err);
+      setError('导出SVG失败: ' + err.message);
+    }
+  };
+
   return (
     <div className={styles.container}>
       <Head>
@@ -200,7 +242,24 @@ export default function Home() {
         {/* API状态显示 */}
         {!apiStatus.checking && (
           <div className={`${styles.apiStatus} ${apiStatus.status === 'ok' ? styles.apiStatusOk : styles.apiStatusError}`}>
-            API状态: {apiStatus.status === 'ok' ? '正常' : '异常'}
+            {apiStatus.status === 'ok' ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                API状态: 正常
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                API状态: 异常
+              </>
+            )}
           </div>
         )}
 
@@ -209,6 +268,10 @@ export default function Home() {
             className={`${styles.tabButton} ${activeTab === 'editor' ? styles.activeTab : ''}`}
             onClick={() => setActiveTab('editor')}
           >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
             编辑器
           </button>
           <button 
@@ -216,6 +279,11 @@ export default function Home() {
             onClick={() => setActiveTab('preview')}
             disabled={!result}
           >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+              <line x1="8" y1="2" x2="8" y2="18"></line>
+              <line x1="16" y1="6" x2="16" y2="22"></line>
+            </svg>
             预览
           </button>
         </div>
@@ -224,7 +292,16 @@ export default function Home() {
           {activeTab === 'editor' ? (
             <div className={styles.editorContainer}>
               <div className={styles.card}>
-                <h2>输入Markdown文本</h2>
+                <h2>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                  </svg>
+                  输入Markdown文本
+                </h2>
                 <form onSubmit={handleSubmit}>
                   <div className={styles.formGroup}>
                     <textarea
@@ -241,14 +318,36 @@ export default function Home() {
                       className={styles.button}
                       disabled={loading || apiStatus.status !== 'ok'}
                     >
-                      {loading ? '生成中...' : '生成思维导图'}
+                      {loading ? (
+                        <>
+                          <svg className="loading" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M12 6v6l4 2"></path>
+                          </svg>
+                          生成中...
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                          </svg>
+                          生成思维导图
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
               </div>
 
               <div className={styles.card}>
-                <h2>或上传Markdown文件</h2>
+                <h2>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  或上传Markdown文件
+                </h2>
                 <form onSubmit={handleFileUpload}>
                   <div className={styles.formGroup}>
                     <input
@@ -266,7 +365,24 @@ export default function Home() {
                       className={styles.button}
                       disabled={loading || !fileInputRef.current?.files?.[0] || apiStatus.status !== 'ok'}
                     >
-                      {loading ? '上传中...' : '上传并生成'}
+                      {loading ? (
+                        <>
+                          <svg className="loading" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M12 6v6l4 2"></path>
+                          </svg>
+                          上传中...
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                          </svg>
+                          上传并生成
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
@@ -274,6 +390,11 @@ export default function Home() {
 
               {error && (
                 <div className={styles.error}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
                   {error}
                 </div>
               )}
@@ -283,10 +404,18 @@ export default function Home() {
               {result && (
                 <>
                   <div className={styles.card}>
-                    <h2>思维导图预览</h2>
+                    <h2>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+                        <line x1="8" y1="2" x2="8" y2="18"></line>
+                        <line x1="16" y1="6" x2="16" y2="22"></line>
+                      </svg>
+                      思维导图预览
+                    </h2>
                     <div className={styles.iframeContainer}>
                       {isDataUrl(result.files.html) ? (
                         <iframe
+                          ref={iframeRef}
                           src={result.files.html}
                           className={styles.iframe}
                           title="思维导图预览"
@@ -294,6 +423,7 @@ export default function Home() {
                         />
                       ) : (
                         <iframe 
+                          ref={iframeRef}
                           src={result.files.html} 
                           className={styles.iframe}
                           title="思维导图预览"
@@ -303,7 +433,14 @@ export default function Home() {
                   </div>
                   
                   <div className={styles.card}>
-                    <h2>下载选项</h2>
+                    <h2>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                      </svg>
+                      下载选项
+                    </h2>
                     <div className={styles.downloadOptions}>
                       {isDataUrl(result.files.html) ? (
                         <a 
@@ -313,6 +450,11 @@ export default function Home() {
                           rel="noreferrer"
                           download="mindmap.html"
                         >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <polyline points="16 18 18 18 18 18"></polyline>
+                          </svg>
                           下载HTML版本
                         </a>
                       ) : (
@@ -322,9 +464,27 @@ export default function Home() {
                           target="_blank"
                           rel="noreferrer"
                         >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <polyline points="16 18 18 18 18 18"></polyline>
+                          </svg>
                           查看HTML版本
                         </a>
                       )}
+                      
+                      <button 
+                        onClick={exportSVG}
+                        className={styles.downloadButton}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"></path>
+                          <polyline points="14 2 14 8 20 8"></polyline>
+                          <path d="M2 15h10"></path>
+                          <path d="M5 12l-3 3 3 3"></path>
+                        </svg>
+                        导出SVG文件
+                      </button>
                     </div>
                   </div>
                 </>
@@ -335,6 +495,10 @@ export default function Home() {
                   onClick={() => setActiveTab('editor')}
                   className={styles.button}
                 >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 12H5"></path>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                  </svg>
                   返回编辑
                 </button>
               </div>
