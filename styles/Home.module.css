@@ -212,6 +212,8 @@
   overflow: hidden;
   transition: all 0.3s;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+  position: relative;
+  background-color: #f9f9f9;
 }
 
 .iframeContainer:hover {
@@ -222,6 +224,41 @@
   width: 100%;
   height: 100%;
   border: none;
+  background-color: white;
+}
+
+.iframeLoading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 10;
+}
+
+.iframeLoading p {
+  margin-top: 16px;
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.loadingSvg {
+  color: var(--primary-color);
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading {
+  animation: spin 2s linear infinite;
 }
 
 .downloadOptions {

@@ -42,6 +42,7 @@ export default function Home() {
   const [result, setResult] = useState(null);
   const [activeTab, setActiveTab] = useState('editor');
   const [apiStatus, setApiStatus] = useState({ checking: true });
+  const [iframeLoading, setIframeLoading] = useState(true);
   const fileInputRef = useRef(null);
   const iframeRef = useRef(null);
 
@@ -64,6 +65,9 @@ export default function Home() {
       } else if (event.data && event.data.type === 'svg-export-error') {
         console.error('iframe导出SVG错误:', event.data.error);
         setError('导出SVG失败: ' + event.data.error);
+      } else if (event.data && event.data.type === 'iframe-loaded') {
+        // iframe加载完成
+        setIframeLoading(false);
       }
     };
 
@@ -109,7 +113,48 @@ export default function Home() {
   // 设置示例Markdown
   useEffect(() => {
     setMarkdown(EXAMPLE_MARKDOWN);
-  }, []);
+    
+    // 自动生成初始思维导图
+    const autoGenerateInitialMindmap = async () => {
+      if (apiStatus.status === 'ok') {
+        setLoading(true);
+        setError(null);
+        setIframeLoading(true);
+        
+        try {
+          const response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ markdown: EXAMPLE_MARKDOWN }),
+          });
+          
+          const data = await response.json();
+          
+          if (!response.ok || !data.success) {
+            throw new Error(data.error || '生成思维导图失败');
+          }
+
+          setResult(data);
+          // 2秒后自动切换到预览标签，给用户时间看到编辑器
+          setTimeout(() => {
+            setActiveTab('preview');
+          }, 1000);
+        } catch (err) {
+          console.error('自动生成思维导图错误:', err);
+          // 不显示错误，因为是自动生成
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    // 当API状态可用时自动生成
+    if (!apiStatus.checking && apiStatus.status === 'ok') {
+      autoGenerateInitialMindmap();
+    }
+  }, [apiStatus]);
 
   // 从文本生成思维导图
   const handleSubmit = async (e) => {
@@ -121,6 +166,7 @@ export default function Home() {
 
     setLoading(true);
     setError(null);
+    setIframeLoading(true);
     
     try {
       const response = await fetch('/api/generate', {
@@ -168,6 +214,7 @@ export default function Home() {
     
     setLoading(true);
     setError(null);
+    setIframeLoading(true);
     
     try {
       const response = await fetch('/api/upload', {
@@ -424,6 +471,15 @@ export default function Home() {
                       思维导图预览
                     </h2>
                     <div className={styles.iframeContainer}>
+                      {iframeLoading && (
+                        <div className={styles.iframeLoading}>
+                          <svg className={styles.loadingSvg} xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M12 6v6l4 2"></path>
+                          </svg>
+                          <p>加载思维导图中...</p>
+                        </div>
+                      )}
                       {isDataUrl(result.files.html) ? (
                         <iframe
                           ref={iframeRef}
@@ -431,6 +487,7 @@ export default function Home() {
                           className={styles.iframe}
                           title="思维导图预览"
                           sandbox="allow-scripts allow-same-origin allow-downloads"
+                          onLoad={() => setIframeLoading(false)}
                         />
                       ) : (
                         <iframe 
@@ -439,6 +496,7 @@ export default function Home() {
                           className={styles.iframe}
                           title="思维导图预览"
                           sandbox="allow-scripts allow-same-origin allow-downloads"
+                          onLoad={() => setIframeLoading(false)}
                         />
                       )}
                     </div>
