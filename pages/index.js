@@ -45,6 +45,34 @@ export default function Home() {
   const fileInputRef = useRef(null);
   const iframeRef = useRef(null);
 
+  // 监听iframe消息
+  useEffect(() => {
+    const handleMessage = (event) => {
+      // 处理SVG导出消息
+      if (event.data && event.data.type === 'svg-export-ready') {
+        // 创建下载链接
+        const a = document.createElement('a');
+        a.href = event.data.url;
+        a.download = 'mindmap.svg';
+        document.body.appendChild(a);
+        a.click();
+        
+        // 清理
+        setTimeout(() => {
+          document.body.removeChild(a);
+        }, 100);
+      } else if (event.data && event.data.type === 'svg-export-error') {
+        console.error('iframe导出SVG错误:', event.data.error);
+        setError('导出SVG失败: ' + event.data.error);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
   // 检查API健康状态
   useEffect(() => {
     async function checkApiHealth() {
@@ -187,6 +215,9 @@ export default function Home() {
     try {
       const iframe = iframeRef.current;
       const iframeWindow = iframe.contentWindow;
+      
+      // 清除之前的错误
+      setError(null);
       
       // 调用iframe内部的exportSVG函数
       if (iframeWindow && typeof iframeWindow.exportSVG === 'function') {
@@ -399,7 +430,7 @@ export default function Home() {
                           src={result.files.html}
                           className={styles.iframe}
                           title="思维导图预览"
-                          sandbox="allow-scripts allow-same-origin"
+                          sandbox="allow-scripts allow-same-origin allow-downloads"
                         />
                       ) : (
                         <iframe 
@@ -407,7 +438,7 @@ export default function Home() {
                           src={result.files.html} 
                           className={styles.iframe}
                           title="思维导图预览"
-                          sandbox="allow-scripts allow-same-origin"
+                          sandbox="allow-scripts allow-same-origin allow-downloads"
                         />
                       )}
                     </div>
