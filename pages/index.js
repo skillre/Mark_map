@@ -252,6 +252,7 @@ export default function Home() {
   
   // 判断URL是否为数据URL
   const isDataUrl = (url) => {
+    console.log('检查URL类型:', url ? url.substring(0, 30) + '...' : 'undefined');
     return typeof url === 'string' && url.startsWith('data:');
   };
 
@@ -480,24 +481,25 @@ export default function Home() {
                           <p>加载思维导图中...</p>
                         </div>
                       )}
-                      {isDataUrl(result.files.html) ? (
+                      {result && result.files && result.files.html ? (
                         <iframe
                           ref={iframeRef}
-                          src={result.files.html}
+                          srcDoc={isDataUrl(result.files.html) ? 
+                            atob(result.files.html.split(',')[1]) : 
+                            result.files.html}
                           className={styles.iframe}
                           title="思维导图预览"
                           sandbox="allow-scripts allow-same-origin allow-downloads"
-                          onLoad={() => setIframeLoading(false)}
+                          onLoad={() => {
+                            console.log('iframe加载完成');
+                            setIframeLoading(false);
+                          }}
                         />
                       ) : (
-                        <iframe 
-                          ref={iframeRef}
-                          src={result.files.html} 
-                          className={styles.iframe}
-                          title="思维导图预览"
-                          sandbox="allow-scripts allow-same-origin allow-downloads"
-                          onLoad={() => setIframeLoading(false)}
-                        />
+                        <div className={styles.error}>
+                          <p>无法加载预览，数据格式不正确</p>
+                          <pre>{JSON.stringify(result, null, 2)}</pre>
+                        </div>
                       )}
                     </div>
                   </div>
