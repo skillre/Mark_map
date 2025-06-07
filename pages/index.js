@@ -186,34 +186,14 @@ export default function Home() {
     
     try {
       const iframe = iframeRef.current;
-      const iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
-      const svgElement = iframeDocument.getElementById('markmap');
+      const iframeWindow = iframe.contentWindow;
       
-      if (svgElement) {
-        // 获取SVG内容
-        const svgContent = svgElement.outerHTML;
-        
-        // 创建Blob
-        const blob = new Blob([svgContent], { type: 'image/svg+xml' });
-        
-        // 创建下载链接
-        const url = URL.createObjectURL(blob);
-        
-        // 创建下载元素
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'mindmap.svg';
-        document.body.appendChild(a);
-        a.click();
-        
-        // 清理
-        setTimeout(() => {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 100);
+      // 调用iframe内部的exportSVG函数
+      if (iframeWindow && typeof iframeWindow.exportSVG === 'function') {
+        iframeWindow.exportSVG();
       } else {
-        console.error('无法找到SVG元素');
-        setError('导出SVG失败，无法找到思维导图元素');
+        console.error('无法访问iframe内的exportSVG函数');
+        setError('导出SVG失败：无法访问思维导图元素，请检查浏览器安全设置');
       }
     } catch (err) {
       console.error('导出SVG错误:', err);
@@ -427,6 +407,7 @@ export default function Home() {
                           src={result.files.html} 
                           className={styles.iframe}
                           title="思维导图预览"
+                          sandbox="allow-scripts allow-same-origin"
                         />
                       )}
                     </div>
